@@ -1,3 +1,1 @@
-name = "agita-clube" 
-pages_build_output_dir ="./public" 
-compatibility_date ="2026-01-01" 
+name = "agita-clube" / pages_build_output_dir = "./public" / compatibility_date = "2026-01-01" / [[d1_databases]] / binding = "DB" / database_name = "agita-db" / database_id = "2dcc8540-6795-49e2-aacf-bb55208d868a"
