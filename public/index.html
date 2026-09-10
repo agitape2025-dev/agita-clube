@@ -232,6 +232,7 @@
     transition:transform .15s;
   }
   .cartao-atalho:hover{transform:translateY(-3px);}
+  .cartao-atalho.selecionado-filtro{border-top-color:var(--azul-escuro);box-shadow:0 0 0 2px var(--azul-escuro) inset;}
   .cartao-atalho .numero{font-size:2rem;font-weight:700;font-family:'Fraunces',serif;color:var(--azul-escuro);}
   .cartao-atalho .rotulo{color:var(--texto-suave);font-size:0.88rem;margin-top:4px;}
 
@@ -268,6 +269,7 @@
   .selo-admin{background:rgba(19,42,82,0.12);color:var(--azul-escuro);}
   .selo-usuario{background:rgba(62,107,176,0.12);color:var(--azul);}
   .selo-tecnica{background:rgba(242,137,43,0.14);color:var(--laranja-forte);}
+  .selo-diretoria{background:rgba(122,63,163,0.14);color:#7a3fa3;}
 
   .vazio{
     text-align:center;
@@ -416,18 +418,162 @@
    dados do servidor quando é aberta.
    ========================================================================= */
 
+/* ---------------------------- SAUDAÇÃO DE LOGIN ---------------------------- */
+// Lista de versículos usada no popup de boas-vindas após o login (sorteio aleatório)
+const VERSICULOS_LOGIN = [
+  {t:'Tudo posso naquele que me fortalece.', r:'Filipenses 4:13'},
+  {t:'O Senhor é o meu pastor; nada me faltará.', r:'Salmos 23:1'},
+  {t:'Entrega o teu caminho ao Senhor; confia nele, e ele o fará.', r:'Salmos 37:5'},
+  {t:'Tudo tem o seu tempo determinado, e há tempo para todo propósito sob o céu.', r:'Eclesiastes 3:1'},
+  {t:'Espera no Senhor, anima-te, e ele fortalecerá o teu coração.', r:'Salmos 27:14'},
+  {t:'O choro pode durar uma noite, mas a alegria vem pela manhã.', r:'Salmos 30:5'},
+  {t:'Deleita-te no Senhor, e ele os desejos do teu coração.', r:'Salmos 37:4'},
+  {t:'Buscai ao Senhor e à sua força; buscai a sua face continuamente.', r:'1 Crônicas 16:11'},
+  {t:'Lâmpada para os meus pés é a tua palavra, e luz para o meu caminho.', r:'Salmos 119:105'},
+  {t:'Lancem sobre ele toda a sua ansiedade, porque ele tem cuidado de vocês.', r:'1 Pedro 5:7'},
+  {t:'O Senhor é a minha luz e a minha salvação; a quem temerei?', r:'Salmos 27:1'},
+  {t:'Sejais fortes e corajosos, todos vós que esperais no Senhor.', r:'Salmos 31:24'},
+  {t:'O Senhor guardará a tua entrada e a tua saída, desde agora e para sempre.', r:'Salmos 121:8'},
+  {t:'Porque sou eu que conheço os planos que tenho para vocês, diz o Senhor.', r:'Jeremias 29:11'},
+  {t:'Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará.', r:'Salmos 91:1'},
+  {t:'O amor é paciente, o amor é benigno.', r:'1 Coríntios 13:4'},
+  {t:'Ainda que eu ande pelo vale da sombra da morte, não temerei mal algum, pois tu estás comigo.', r:'Salmos 23:4'},
+  {t:'O Senhor te abençoará e te guardará.', r:'Números 6:24'},
+  {t:'Em paz me deito e logo adormeço, porque só tu, Senhor, me fazes habitar em segurança.', r:'Salmos 4:8'},
+  {t:'Criador do céu e da terra, o meu socorro vem do Senhor.', r:'Salmos 121:2'},
+  {t:'Clama a mim, e responder-te-ei, e anunciar-te-ei coisas grandes e firmes que não sabes.', r:'Jeremias 33:3'},
+  {t:'O Senhor é bom, uma fortaleza no dia da angústia; e conhece os que confiam nele.', r:'Naum 1:7'},
+  {t:'O fruto do Espírito é amor, alegria, paz, longanimidade, benignidade, bondade, fidelidade.', r:'Gálatas 5:22'},
+  {t:'Não temas, porque eu sou contigo; não te assombres, porque eu sou o teu Deus.', r:'Isaías 41:10'},
+  {t:'Confia no Senhor de todo o teu coração e não te estribes no teu próprio entendimento.', r:'Provérbios 3:5'},
+  {t:'Reconhece-o em todos os teus caminhos, e ele endireitará as tuas veredas.', r:'Provérbios 3:6'},
+  {t:'O nome do Senhor é uma torre forte; para ela corre o justo e está seguro.', r:'Provérbios 18:10'},
+  {t:'Grandes coisas fez o Senhor por nós, e por isso estamos alegres.', r:'Salmos 126:3'},
+  {t:'Cantai ao Senhor um cântico novo, porque ele tem feito maravilhas.', r:'Salmos 98:1'},
+  {t:'O Senhor sustenta a todos os que caem e levanta a todos os prostrados.', r:'Salmos 145:14'},
+  {t:'Alegrai-vos sempre no Senhor; outra vez digo: alegrai-vos.', r:'Filipenses 4:4'},
+  {t:'Não andeis ansiosos de coisa alguma; antes, em tudo, sejam os vossos pedidos conhecidos diante de Deus.', r:'Filipenses 4:6'},
+  {t:'E a paz de Deus, que excede todo o entendimento, guardará os vossos corações.', r:'Filipenses 4:7'},
+  {t:'Mil cairão ao teu lado, e dez mil à tua direita, mas não topará contigo.', r:'Salmos 91:7'},
+  {t:'Bem-aventurados os limpos de coração, porque eles verão a Deus.', r:'Mateus 5:8'},
+  {t:'Vinde a mim, todos os que estais cansados e oprimidos, e eu the aliviarei.', r:'Mateus 11:28'},
+  {t:'O Senhor é a força da minha vida; de quem recearei?', r:'Salmos 27:1'},
+  {t:'Deus é o nosso refúgio e fortaleza, socorro bem presente na angústia.', r:'Salmos 46:1'},
+  {t:'Aquietai-vos e sabei que eu sou Deus.', r:'Salmos 46:10'},
+  {t:'Os que confiam no Senhor são como o monte Sião, que não se abala, antes permanece para sempre.', r:'Salmos 125:1'},
+  {t:'Guarda o teu coração mais do que tudo o que se guarda, porque dele procedem as fontes da vida.', r:'Provérbios 4:23'},
+  {t:'Enganosa é a graça, e vã é a formosura, mas a mulher que teme ao Senhor, essa será louvada.', r:'Provérbios 31:30'},
+  {t:'Busquem primeiro o Reino de Deus e a sua justiça, e todas estas coisas lhes serão acrescentadas.', r:'Mateus 6:33'},
+  {t:'Portanto, não vos inqueteis pelo dia de amanhã, pois o amanhã trará os seus cuidados.', r:'Mateus 6:34'},
+  {t:'Pois onde estiver o vosso tesouro, aí estará também o vosso coração.', r:'Mateus 6:21'},
+  {t:'Examinai tudo. Retende o bem.', r:'1 Tessalonicenses 5:21'},
+  {t:'Dai graças em todas as circunstâncias, porque esta é a vontade de Deus em Cristo Jesus para convosco.', r:'1 Tessalonicenses 5:18'},
+  {t:'Não se turbe o vosso coração; credes em Deus, crede também em mim.', r:'João 14:1'},
+  {t:'Deixo-vos a paz, a minha paz vos dou; não vo-la dou como a o mundo a dá.', r:'João 14:27'},
+  {t:'Eu sou a luz do mundo; quem me segue não andará em trevas, mas terá a luz da vida.', r:'João 8:12'},
+  {t:'Conhecereis a verdade, e a verdade vos libertará.', r:'João 8:32'},
+  {t:'O ladrão vem senão para roubar, matar e destruir; eu vim para que tenham vida e a tenham em abundância.', r:'João 10:10'},
+  {t:'Eu sou a ressurreição e a vida; quem crê em mim, ainda que esteja morto, viverá.', r:'João 11:25'},
+  {t:'Ninguém tem maior amor do que este: dar alguém a sua vida pelos seus amigos.', r:'João 15:13'},
+  {t:'No mundo tereis aflições, mas bexigai-vos; eu venci o mundo.', r:'João 16:33'},
+  {t:'E sabemos que todas as coisas coopera para o bem daqueles que amam a Deus.', r:'Romanos 8:28'},
+  {t:'Se Deus é por nós, quem será contra nós?', r:'Romanos 8:31'},
+  {t:'Porque estou persuadido de que nem a morte, nem a vida... nos poderá separar do amor de Deus.', r:'Romanos 8:38-39'},
+  {t:'Não vos conformeis com este mundo, mas transformai-vos pela renovação da vossa mente.', r:'Romanos 12:2'},
+  {t:'Alegrai-vos na esperança, sede pacientes na tribulação, perseverai na oração.', r:'Romanos 12:12'},
+  {t:'Ora, a fé é a certeza de coisas que se esperam, a convicção de fatos que se não vêem.', r:'Hebreus 11:1'},
+  {t:'Sem fé é impossível agradar a Deus.', r:'Hebreus 11:6'},
+  {t:'Olhando para Jesus, autor e consumador da fé.', r:'Hebreus 12:2'},
+  {t:'Portanto, humilhai-vos debaixo da poderosa mão de Deus, para que a seu tempo vos exalte.', r:'1 Pedro 5:6'},
+  {t:'Amados, amemos uns aos outros; porque o amor é de Deus.', r:'1 João 4:7'},
+  {t:'No amor não há medo; antes, o perfeito amor castiga o medo.', r:'1 João 4:18'},
+  {t:'E esta é a confiança que temos nele, que, se pedirmos alguma coisa segundo a sua vontade, ele nos ouve.', r:'1 João 5:14'},
+  {t:'Porque por graça sois salvos, por meio da fé; e isto não vem de vós, é dom de Deus.', r:'Efésios 2:8'},
+  {t:'Porque somos feitura dele, criados em Cristo Jesus para as boas obras.', r:'Efésios 2:10'},
+  {t:'Sede fortes no Senhor e na força do seu poder.', r:'Efésios 6:10'},
+  {t:'Revesti-vos de toda a armadura de Deus, para que possais estar firmes.', r:'Efésios 6:11'},
+  {t:'Fazei tudo sem murmurações nem contendas.', r:'Filipenses 2:14'},
+  {t:'Quanto ao mais, irmãos, tudo o que é verdadeiro, tudo o que é honesto... meditai nisso.', r:'Filipenses 4:8'},
+  {t:'O meu Deus suprirá todas as vossas necessidades segundo as suas riquezas em glória.', r:'Filipenses 4:19'},
+  {t:'E tudo o que fizerdes em palavra ou em obra, fazei tudo em nome do Senhor Jesus.', r:'Colossenses 3:17'},
+  {t:'Portanto, quer comais, quer bebais, ou façais outra qualquer coisa, fazei tudo para a glória de Deus.', r:'1 Coríntios 10:31'},
+  {t:'Vigiai, estai firmes na fé, portai-vos varonilmente, sede fortes.', r:'1 Coríntios 16:13'},
+  {t:'Mas graças a Deus que nos dá a vitória por nosso Senhor Jesus Cristo.', r:'1 Coríntios 15:57'},
+  {t:'A graça do Senhor Jesus Cristo, e o amor de Deus, e a comunhão do Espírito Santo sejam com todos vós.', r:'2 Coríntios 13:13'},
+  {t:'A minha graça te basta, porque o meu poder se aperfeiçoa na fraqueza.', r:'2 Coríntios 12:9'},
+  {t:'Porque as nossas armas não são carnais, mas poderosas em Deus para destruição de fortalezas.', r:'2 Coríntios 10:4'},
+  {t:'E, assim, se alguém está em Cristo, nova criatura é; as coisas velhas já passaram; eis que tudo se fez novo.', r:'2 Coríntios 5:17'},
+  {t:'Porque caminhamos por fé, e não por vista.', r:'2 Coríntios 5:7'},
+  {t:'Onde está o Espírito do Senhor, aí há liberdade.', r:'2 Coríntios 3:17'},
+  {t:'Não nos cansemos de fazer o bem, a seu tempo ceifaremos, se não desfalecermos.', r:'Gálatas 6:9'},
+  {t:'Bendito seja o Deus e Pai de nosso Senhor Jesus Cristo, o qual nos abençoou com todas as bênçãos espirituais.', r:'Efésios 1:3'},
+  {t:'Ora, àquele que é poderoso para fazer tudo muito mais abundantemente além daquilo que pedimos ou pensamos.', r:'Efésios 3:20'},
+  {t:'Portanto, sede imitadores de Deus, como filhos amados.', r:'Efésios 5:1'},
+  {t:'Regozijai-vos sempre.', r:'1 Tessalonicenses 5:16'},
+  {t:'O Senhor é fiel; ele os fortalecerá e os guardará do maligno.', r:'2 Tessalonicenses 3:3'},
+  {t:'Combate o bom combate da fé, toma posse da vida eterna.', r:'1 Timóteo 6:12'},
+  {t:'Porque Deus não nos deu o espírito de covardia, mas de poder, de amor e de moderação.', r:'2 Timóteo 1:7'},
+  {t:'Procure apresentar-se a Deus aprovado, obreiro que não tem do que se envergonhar.', r:'2 Timóteo 2:15'},
+  {t:'Toda a Escritura é divinamente inspirada e proveitosa para ensinar, para repreender, para corrigir.', r:'2 Timóteo 3:16'},
+  {t:'Combati o bom combate, acabei a carreira, guardei a fé.', r:'2 Timóteo 4:7'},
+  {t:'Portanto, acheguemo-nos com confiança ao trono da graça, para alcançarmos misericórdia.', r:'Hebreus 4:16'},
+  {t:'Conservemo-nos firmes na confissão da nossa esperança, sem vacilar.', r:'Hebreus 10:23'},
+  {t:'Meus irmãos, tende por motivo de grande gozo o cairdes em várias tentações.', r:'Tiago 1:2'},
+  {t:'Se algum de vós tem falta de sabedoria, peça-a a Deus, que a todos dá liberalmente.', r:'Tiago 1:5'},
+  {t:'Portanto, sujeitai-vos a Deus. Resisti ao diabo, e ele fugirá de vós.', r:'Tiago 4:7'},
+  {t:'A oração fervorosa de um justo tem grande poder e eficácia.', r:'Tiago 5:16'},
+  {t:'Lancem sobre ele toda a sua ansiedade, porque ele tem cuidado de vocês.', r:'1 Pedro 5:7'},
+  {t:'Sede sóbrios; vigiai; porque o diabo, vosso adversário, anda em derredor.', r:'1 Pedro 5:8'},
+  {t:'Mas vós sois a geração eleita, o sacerdócio real, a nação santa.', r:'1 Pedro 2:9'},
+  {t:'O Senhor não retarda a sua promessa, ainda que alguns a têm por tardia.', r:'2 Pedro 3:9'},
+  {t:'Antes, crescei na graça e no conhecimento de nosso Senhor e Salvador Jesus Cristo.', r:'2 Pedro 3:18'},
+  {t:'Se confessarmos os nossos pecados, ele é fiel e justo para nos perdoar os pecados.', r:'1 João 1:9'},
+  {t:'Filhinhos, guardai-vos dos ídolos.', r:'1 João 5:21'},
+  {t:'Eis que estou à porta e bato; se alguém ouvir a minha voz e abrir a porta, entrarei.', r:'Apocalipse 3:20'},
+  {t:'E Deus limpará de seus olhos toda a lágrima; e não haverá mais morte, nem pranto.', r:'Apocalipse 21:4'},
+  {t:'Eis que faço novas todas as coisas.', r:'Apocalipse 21:5'},
+  {t:'Aquele que testifica estas coisas diz: Certamente cedo venho. Amém. Ora, vem, Senhor Jesus.', r:'Apocalipse 22:20'}
+];
+
+function saudacaoPorHorario(){
+  const hora = new Date().getHours();
+  if(hora >= 5 && hora < 12) return 'Bom dia';
+  if(hora >= 12 && hora < 18) return 'Boa tarde';
+  if(hora >= 18 && hora < 24) return 'Boa noite';
+  return 'Boa madrugada';
+}
+function mostrarSaudacaoLogin(){
+  const v = VERSICULOS_LOGIN[Math.floor(Math.random() * VERSICULOS_LOGIN.length)];
+  const primeiroNome = usuarioLogado.nome.split(' ')[0];
+  abrirModal(`
+    <div style="text-align:center;padding:8px 4px;">
+      <h3 style="margin:0 0 6px;color:var(--azul-escuro);">${saudacaoPorHorario()}, ${primeiroNome}! 👋</h3>
+      <p style="color:var(--texto-suave);margin:0 0 18px;">Que seu dia seja abençoado.</p>
+      <p style="font-family:'Fraunces',serif;font-size:1.05rem;line-height:1.5;color:var(--azul-escuro);margin:0 0 6px;">"${v.t}"</p>
+      <p style="color:var(--laranja-forte);font-weight:600;margin:0 0 22px;">${v.r}</p>
+      <button class="btn btn-primario" onclick="fecharModal()">Continuar</button>
+    </div>
+  `);
+}
+
 let usuarioLogado = null;
 let secaoAtual = 'inicio';
 
 function rotuloPapel(papel){
   if(papel==='admin') return 'Administrador';
   if(papel==='tecnica') return 'Técnica';
+  if(papel==='diretoria') return 'Diretoria';
   return 'Usuário';
 }
 // admin e técnica operam o clube (atletas, documentos, pagamentos, calendário, avisos);
+// diretoria visualiza tudo isso mas não pode criar/editar/excluir nada, e não vê Usuários;
 // "usuario" (responsável/família) só acompanha calendário e avisos já publicados.
 function ehEquipe(){
   return usuarioLogado.papel !== 'usuario';
+}
+// controla quem pode criar, editar ou excluir dados (não inclui diretoria nem usuario)
+function podeGerenciar(){
+  return usuarioLogado.papel === 'admin' || usuarioLogado.papel === 'tecnica';
 }
 
 // caches simples em memória (só para não ter que buscar de novo a cada clique
@@ -532,7 +678,7 @@ async function tentarLogin(){
     document.getElementById('form-troca-senha').style.display = 'block';
     return;
   }
-  finalizarLogin();
+  finalizarLogin(true);
 }
 async function confirmarTrocaSenha(){
   const s1 = document.getElementById('nova-senha-1').value;
@@ -553,9 +699,9 @@ async function confirmarTrocaSenha(){
     await api('trocar-senha', {method:'POST', corpo:{novaSenha:s1}});
   }catch(e){ return; }
   usuarioLogado.precisaTrocarSenha = false;
-  finalizarLogin();
+  finalizarLogin(true);
 }
-function finalizarLogin(){
+function finalizarLogin(mostrarSaudacao){
   document.getElementById('tela-login').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   document.getElementById('login-usuario').value='';
@@ -565,6 +711,7 @@ function finalizarLogin(){
   document.getElementById('chip-usuario').textContent = usuarioLogado.nome + ' · ' + rotuloPapel(usuarioLogado.papel);
   montarMenu();
   irPara('inicio');
+  if(mostrarSaudacao) mostrarSaudacaoLogin();
 }
 async function sair(){
   try{ await api('logout', {method:'POST'}); }catch(e){}
@@ -693,13 +840,15 @@ async function renderInicio(){
    ATLETAS (somente admin)
    ================================================================ */
 let fotoAtletaTemp = null;
+let filtroSetorAtletas = 'todos';
 async function renderAtletas(){
   if(!ehEquipe()){ irPara('inicio'); return; }
   const c = document.getElementById('conteudo');
+  filtroSetorAtletas = 'todos';
   c.innerHTML = `
     <div class="cabecalho-secao">
       <div><h2>Atletas</h2><p>Cadastro e acompanhamento das atletas do clube.</p></div>
-      <button class="btn btn-primario" onclick="abrirFormAtleta()">+ Nova atleta</button>
+      ${podeGerenciar() ? `<button class="btn btn-primario" onclick="abrirFormAtleta()">+ Nova atleta</button>` : ''}
     </div>
     <div class="grade-dashboard" id="resumo-setores" style="margin-bottom:22px;"></div>
     <div class="cartao">
@@ -716,6 +865,11 @@ async function renderAtletas(){
   renderResumoSetoresAtletas();
   renderTabelaAtletas();
 }
+function filtrarPorSetor(chave){
+  filtroSetorAtletas = chave;
+  renderResumoSetoresAtletas();
+  renderTabelaAtletas();
+}
 function renderResumoSetoresAtletas(){
   const setores = [
     { chave:'ESCOLINHA', rotulo:'Escolinha' },
@@ -724,27 +878,24 @@ function renderResumoSetoresAtletas(){
   ];
   const alvo = document.getElementById('resumo-setores');
   if(!alvo) return;
-  const semSetor = atletasCache.filter(a=>!setores.some(s=>s.chave===a.setor)).length;
+  const semSetorQtd = atletasCache.filter(a=>!setores.some(s=>s.chave===a.setor)).length;
+  const cartao = (chave, numero, rotulo) => `
+    <div class="cartao-atalho ${filtroSetorAtletas===chave?'selecionado-filtro':''}" onclick="filtrarPorSetor('${chave}')">
+      <div class="numero">${numero}</div>
+      <div class="rotulo">${rotulo}</div>
+    </div>`;
   alvo.innerHTML = `
-    <div class="cartao-atalho" style="cursor:default;">
-      <div class="numero">${atletasCache.length}</div>
-      <div class="rotulo">Total de atletas</div>
-    </div>
-    ${setores.map(s=>`
-      <div class="cartao-atalho" style="cursor:default;">
-        <div class="numero">${atletasCache.filter(a=>a.setor===s.chave).length}</div>
-        <div class="rotulo">${s.rotulo}</div>
-      </div>`).join('')}
-    ${semSetor>0 ? `
-      <div class="cartao-atalho" style="cursor:default;">
-        <div class="numero">${semSetor}</div>
-        <div class="rotulo">Sem setor definido</div>
-      </div>` : ''}
+    ${cartao('todos', atletasCache.length, 'Total de atletas')}
+    ${setores.map(s=>cartao(s.chave, atletasCache.filter(a=>a.setor===s.chave).length, s.rotulo)).join('')}
+    ${semSetorQtd>0 ? cartao('sem-setor', semSetorQtd, 'Sem setor definido') : ''}
   `;
 }
 function renderTabelaAtletas(){
   const busca = (document.getElementById('busca-atleta')?.value || '').toLowerCase();
-  const lista = atletasCache.filter(a=>a.nome.toLowerCase().includes(busca));
+  let lista = atletasCache.filter(a=>a.nome.toLowerCase().includes(busca));
+  const setores = ['ESCOLINHA','PRE-EQUIPE','ALTO RENDIMENTO'];
+  if(filtroSetorAtletas==='sem-setor') lista = lista.filter(a=>!setores.includes(a.setor));
+  else if(filtroSetorAtletas!=='todos') lista = lista.filter(a=>a.setor===filtroSetorAtletas);
   const alvo = document.getElementById('tabela-atletas');
   if(lista.length===0){
     alvo.innerHTML = `<div class="vazio">Nenhuma atleta cadastrada ainda. Clique em "Nova atleta" para começar.</div>`;
@@ -764,8 +915,10 @@ function renderTabelaAtletas(){
             <td>${a.responsavel||'—'}</td>
             <td>${a.telefone||'—'}</td>
             <td style="white-space:nowrap;">
+              ${podeGerenciar() ? `
               <button class="btn btn-sm btn-secundario" onclick="abrirFormAtleta('${a.id}')">Editar</button>
               <button class="btn btn-sm btn-perigo" onclick="excluirAtleta('${a.id}')">Excluir</button>
+              ` : '—'}
             </td>
           </tr>`).join('')}
       </tbody>
@@ -872,6 +1025,7 @@ async function renderDocumentos(){
             ${atletasCache.map(a=>`<option value="${a.id}">${a.nome}</option>`).join('')}
           </select>
         </div>
+        ${podeGerenciar() ? `
         <div class="campo">
           <label>Tipo de documento</label>
           <input type="text" id="doc-tipo" placeholder="Ex: Atestado médico">
@@ -879,9 +1033,9 @@ async function renderDocumentos(){
         <div class="campo">
           <label>Arquivo</label>
           <input type="file" id="doc-arquivo" onchange="lerArquivoDoc(event)">
-        </div>
+        </div>` : ''}
       </div>
-      <div class="barra-acoes"><button class="btn btn-primario" onclick="salvarDocumento()">Adicionar documento</button></div>
+      ${podeGerenciar() ? `<div class="barra-acoes"><button class="btn btn-primario" onclick="salvarDocumento()">Adicionar documento</button></div>` : ''}
     </div>
     <div class="cartao"><div id="lista-docs"><div class="vazio">Selecione uma atleta acima para ver os documentos dela.</div></div></div>
   `;
@@ -930,7 +1084,7 @@ async function renderListaDocs(){
             <td>${formatarData(d.data_upload ? d.data_upload.slice(0,10) : '')}</td>
             <td style="white-space:nowrap;">
               <a class="btn btn-sm btn-secundario" href="${d.conteudo}" download="${d.nome_arquivo}">Baixar</a>
-              <button class="btn btn-sm btn-perigo" onclick="excluirDocumento('${d.id}')">Excluir</button>
+              ${podeGerenciar() ? `<button class="btn btn-sm btn-perigo" onclick="excluirDocumento('${d.id}')">Excluir</button>` : ''}
             </td>
           </tr>`).join('')}
       </tbody>
@@ -951,7 +1105,7 @@ async function renderPagamentos(){
   c.innerHTML = `
     <div class="cabecalho-secao">
       <div><h2>Pagamentos</h2><p>Confirmações de pagamento de inscrições e competições.</p></div>
-      <button class="btn btn-primario" onclick="abrirFormPagamento()">+ Nova inscrição</button>
+      ${podeGerenciar() ? `<button class="btn btn-primario" onclick="abrirFormPagamento()">+ Nova inscrição</button>` : ''}
     </div>
     <div class="cartao">
       <div class="campo" style="max-width:260px;margin-bottom:0;">
@@ -991,10 +1145,12 @@ function renderTabelaPagamentos(){
             <td>${p.valor?('R$ '+Number(p.valor).toFixed(2).replace('.',',')):'—'}</td>
             <td><span class="selo ${p.status==='confirmado'?'selo-confirmado':'selo-pendente'}">${p.status==='confirmado'?'Confirmado':'Pendente'}</span></td>
             <td style="white-space:nowrap;">
+              ${podeGerenciar() ? `
               <button class="btn btn-sm ${p.status==='confirmado'?'btn-secundario':'btn-primario'}" onclick="alternarStatusPagamento('${p.id}')">
                 ${p.status==='confirmado'?'Marcar pendente':'Confirmar'}
               </button>
               <button class="btn btn-sm btn-perigo" onclick="excluirPagamento('${p.id}')">Excluir</button>
+              ` : '—'}
             </td>
           </tr>`).join('')}
       </tbody>
@@ -1048,7 +1204,7 @@ let calMesAtual = new Date().getMonth();
 let calAnoAtual = new Date().getFullYear();
 const NOMES_MES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 async function renderCalendario(){
-  const ehAdmin = ehEquipe();
+  const ehAdmin = podeGerenciar();
   const c = document.getElementById('conteudo');
   c.innerHTML = `
     <div class="cabecalho-secao">
@@ -1084,7 +1240,7 @@ function mudarMesCal(delta){
   desenharCalendario();
 }
 function desenharCalendario(){
-  const ehAdmin = ehEquipe();
+  const ehAdmin = podeGerenciar();
   document.getElementById('cal-titulo').textContent = NOMES_MES[calMesAtual] + ' ' + calAnoAtual;
   const grade = document.getElementById('grade-calendario');
   const primeiroDia = new Date(calAnoAtual, calMesAtual, 1);
@@ -1124,7 +1280,7 @@ function desenharCalendario(){
   </tbody></table>`;
 }
 function abrirFormEvento(){
-  if(!ehEquipe()) return;
+  if(!podeGerenciar()) return;
   abrirModal(`
     <h3>Novo evento</h3>
     <div class="campo"><label>Título</label><input type="text" id="ef-titulo"></div>
@@ -1180,7 +1336,7 @@ const TIPOS_AVISO = [
 let avisoTipoAtual = 'cancelada';
 let avisoFotoTemp = null;
 async function renderAvisos(){
-  const ehAdmin = ehEquipe();
+  const ehAdmin = podeGerenciar();
   const c = document.getElementById('conteudo');
 
   if(!ehAdmin){
@@ -1233,7 +1389,7 @@ async function renderAvisos(){
   await renderGaleriaAvisos();
 }
 async function renderGaleriaAvisos(){
-  const ehAdmin = ehEquipe();
+  const ehAdmin = podeGerenciar();
   try{
     const dados = await api('avisos');
     avisosCache = dados.avisos;
@@ -1461,7 +1617,7 @@ function abrirFormUsuario(){
     <div class="campo"><label>Nome completo</label><input type="text" id="uf-nome"></div>
     <div class="campo"><label>Usuário (login)</label><input type="text" id="uf-usuario"></div>
     <div class="campo"><label>Papel</label>
-      <select id="uf-papel"><option value="usuario">Usuário</option><option value="tecnica">Técnica</option><option value="admin">Administrador</option></select>
+      <select id="uf-papel"><option value="usuario">Usuário</option><option value="tecnica">Técnica</option><option value="diretoria">Diretoria</option><option value="admin">Administrador</option></select>
     </div>
     <p style="font-size:0.82rem;color:var(--texto-suave);">A senha inicial será <b>Agita@123</b> — o usuário será obrigado a trocá-la no primeiro acesso.</p>
     <div class="barra-acoes">
