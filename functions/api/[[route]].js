@@ -120,10 +120,16 @@ function exigirAdmin(usuario) {
   if (usuario.papel !== 'admin') return erro('Apenas administradores podem fazer isso.', 403);
   return null;
 }
-// Admin e técnicas têm acesso à operação do clube (atletas, documentos, pagamentos,
+// Admin, técnica e diretoria têm acesso à operação do clube (atletas, documentos, pagamentos,
 // calendário, avisos) — só a gestão de Usuários fica exclusiva do admin (exigirAdmin acima).
 function exigirEquipe(usuario) {
   if (usuario.papel === 'usuario') return erro('Você não tem permissão para fazer isso.', 403);
+  return null;
+}
+// Só admin e técnica podem criar/editar/excluir dados. Diretoria enxerga tudo (via exigirEquipe)
+// mas é somente-leitura — usado nas rotas de escrita (POST/PUT/PATCH/DELETE).
+function exigirGerenciar(usuario) {
+  if (usuario.papel !== 'admin' && usuario.papel !== 'tecnica') return erro('Você tem acesso apenas para visualização.', 403);
   return null;
 }
 
@@ -182,7 +188,7 @@ async function tratarResumo(env, usuario) {
 
   const resumo = { eventosFuturos, avisosPublicados: avisos };
 
-  if (usuario.papel === 'admin' || usuario.papel === 'tecnica') {
+  if (usuario.papel === 'admin' || usuario.papel === 'tecnica' || usuario.papel === 'diretoria') {
     const [{ total: atletas }] = (await env.DB.prepare(`SELECT COUNT(*) as total FROM atletas`).all()).results;
     const [{ total: documentos }] = (await env.DB.prepare(`SELECT COUNT(*) as total FROM documentos`).all()).results;
     const [{ total: pendentes }] = (await env.DB.prepare(`SELECT COUNT(*) as total FROM pagamentos WHERE status='pendente'`).all()).results;
@@ -208,6 +214,8 @@ async function tratarAtletas(request, env, usuario, rota, metodo) {
     return json({ atletas: results });
   }
   if (metodo === 'POST' && !id) {
+    const bloqueadoEscrita = exigirGerenciar(usuario);
+    if (bloqueadoEscrita) return bloqueadoEscrita;
     const c = await request.json();
     if (!c.nome || !c.nome.trim()) return erro('Informe o nome da atleta.');
     const novoId = gerarId('at');
@@ -217,6 +225,8 @@ async function tratarAtletas(request, env, usuario, rota, metodo) {
     return json({ id: novoId });
   }
   if (metodo === 'PUT' && id) {
+    const bloqueadoEscrita = exigirGerenciar(usuario);
+    if (bloqueadoEscrita) return bloqueadoEscrita;
     const c = await request.json();
     if (!c.nome || !c.nome.trim()) return erro('Informe o nome da atleta.');
     await env.DB.prepare(
@@ -225,6 +235,8 @@ async function tratarAtletas(request, env, usuario, rota, metodo) {
     return json({ ok: true });
   }
   if (metodo === 'DELETE' && id) {
+    const bloqueadoExclusao = exigirGerenciar(usuario);
+    if (bloqueadoExclusao) return bloqueadoExclusao;
     await env.DB.prepare(`DELETE FROM atletas WHERE id=?`).bind(id).run();
     await env.DB.prepare(`DELETE FROM documentos WHERE atleta_id=?`).bind(id).run();
     await env.DB.prepare(`DELETE FROM pagamentos WHERE atleta_id=?`).bind(id).run();
@@ -249,6 +261,8 @@ async function tratarDocumentos(request, env, usuario, rota, metodo) {
     return json({ documentos: results });
   }
   if (metodo === 'POST' && !id) {
+    const bloqueadoEscrita = exigirGerenciar(usuario);
+    if (bloqueadoEscrita) return bloqueadoEscrita;
     const c = await request.json();
     if (!c.atletaId || !c.conteudo) return erro('Dados incompletos.');
     const novoId = gerarId('doc');
@@ -259,6 +273,8 @@ async function tratarDocumentos(request, env, usuario, rota, metodo) {
     return json({ id: novoId });
   }
   if (metodo === 'DELETE' && id) {
+    const bloqueadoExclusao = exigirGerenciar(usuario);
+    if (bloqueadoExclusao) return bloqueadoExclusao;
     await env.DB.prepare(`DELETE FROM documentos WHERE id=?`).bind(id).run();
     return json({ ok: true });
   }
@@ -280,6 +296,8 @@ async function tratarPagamentos(request, env, usuario, rota, metodo) {
     return json({ pagamentos: results });
   }
   if (metodo === 'POST' && !id) {
+    const bloqueadoEscrita = exigirGerenciar(usuario);
+    if (bloqueadoEscrita) return bloqueadoEscrita;
     const c = await request.json();
     if (!c.atletaId) return erro('Informe a atleta.');
     const novoId = gerarId('pg');
@@ -289,6 +307,8 @@ async function tratarPagamentos(request, env, usuario, rota, metodo) {
     return json({ id: novoId });
   }
   if (metodo === 'PATCH' && id) {
+    const bloqueadoEscrita = exigirGerenciar(usuario);
+    if (bloqueadoEscrita) return bloqueadoEscrita;
     const atual = await env.DB.prepare(`SELECT status FROM pagamentos WHERE id=?`).bind(id).first();
     if (!atual) return erro('Pagamento não encontrado.', 404);
     const novoStatus = atual.status === 'confirmado' ? 'pendente' : 'confirmado';
@@ -296,6 +316,8 @@ async function tratarPagamentos(request, env, usuario, rota, metodo) {
     return json({ status: novoStatus });
   }
   if (metodo === 'DELETE' && id) {
+    const bloqueadoExclusao = exigirGerenciar(usuario);
+    if (bloqueadoExclusao) return bloqueadoExclusao;
     await env.DB.prepare(`DELETE FROM pagamentos WHERE id=?`).bind(id).run();
     return json({ ok: true });
   }
@@ -313,7 +335,7 @@ async function tratarEventos(request, env, usuario, rota, metodo) {
     return json({ eventos: results });
   }
   if (metodo === 'POST' && !id) {
-    const bloqueado = exigirEquipe(usuario);
+    const bloqueado = exigirGerenciar(usuario);
     if (bloqueado) return bloqueado;
     const c = await request.json();
     if (!c.titulo || !c.inicio) return erro('Preencha título e data de início.');
@@ -325,7 +347,7 @@ async function tratarEventos(request, env, usuario, rota, metodo) {
     return json({ id: novoId });
   }
   if (metodo === 'DELETE' && id) {
-    const bloqueado = exigirEquipe(usuario);
+    const bloqueado = exigirGerenciar(usuario);
     if (bloqueado) return bloqueado;
     await env.DB.prepare(`DELETE FROM eventos WHERE id=?`).bind(id).run();
     return json({ ok: true });
@@ -344,7 +366,7 @@ async function tratarAvisos(request, env, usuario, rota, metodo) {
     return json({ avisos: results });
   }
   if (metodo === 'POST' && !id) {
-    const bloqueado = exigirEquipe(usuario);
+    const bloqueado = exigirGerenciar(usuario);
     if (bloqueado) return bloqueado;
     const c = await request.json();
     if (!c.imagem) return erro('Banner ausente.');
@@ -355,7 +377,7 @@ async function tratarAvisos(request, env, usuario, rota, metodo) {
     return json({ id: novoId });
   }
   if (metodo === 'DELETE' && id) {
-    const bloqueado = exigirEquipe(usuario);
+    const bloqueado = exigirGerenciar(usuario);
     if (bloqueado) return bloqueado;
     await env.DB.prepare(`DELETE FROM avisos_publicados WHERE id=?`).bind(id).run();
     return json({ ok: true });
@@ -385,7 +407,7 @@ async function tratarUsuarios(request, env, usuario, rota, metodo) {
     if (existente) return erro('Este usuário já existe.');
     const { hash, salt } = await gerarHashSenha('Agita@123');
     const novoId = gerarId('us');
-    const papeisValidos = ['admin', 'tecnica', 'usuario'];
+    const papeisValidos = ['admin', 'tecnica', 'diretoria', 'usuario'];
     const papel = papeisValidos.includes(c.papel) ? c.papel : 'usuario';
     await env.DB.prepare(
       `INSERT INTO usuarios (id, usuario, senha_hash, senha_salt, nome, papel, precisa_trocar_senha, ultimo_acesso) VALUES (?,?,?,?,?,?,1,NULL)`
