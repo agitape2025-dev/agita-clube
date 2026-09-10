@@ -92,23 +92,23 @@ export async function onRequest(context) {
 
   try {
     // ---------- rotas públicas (não exigem login) ----------
-    if (rota[0] === 'login' && metodo === 'POST') return tratarLogin(request, env);
+    if (rota[0] === 'login' && metodo === 'POST') return await tratarLogin(request, env);
 
     // todas as demais rotas exigem sessão válida
     const usuario = await usuarioDaSessao(request, env);
     if (!usuario) return erro('Não autenticado.', 401);
 
-    if (rota[0] === 'logout' && metodo === 'POST') return tratarLogout(request, env);
+    if (rota[0] === 'logout' && metodo === 'POST') return await tratarLogout(request, env);
     if (rota[0] === 'sessao' && metodo === 'GET') return json({ usuario });
-    if (rota[0] === 'trocar-senha' && metodo === 'POST') return tratarTrocarSenha(request, env, usuario);
-    if (rota[0] === 'resumo' && metodo === 'GET') return tratarResumo(env, usuario);
+    if (rota[0] === 'trocar-senha' && metodo === 'POST') return await tratarTrocarSenha(request, env, usuario);
+    if (rota[0] === 'resumo' && metodo === 'GET') return await tratarResumo(env, usuario);
 
-    if (rota[0] === 'atletas') return tratarAtletas(request, env, usuario, rota, metodo);
-    if (rota[0] === 'documentos') return tratarDocumentos(request, env, usuario, rota, metodo);
-    if (rota[0] === 'pagamentos') return tratarPagamentos(request, env, usuario, rota, metodo);
-    if (rota[0] === 'eventos') return tratarEventos(request, env, usuario, rota, metodo);
-    if (rota[0] === 'avisos') return tratarAvisos(request, env, usuario, rota, metodo);
-    if (rota[0] === 'usuarios') return tratarUsuarios(request, env, usuario, rota, metodo);
+    if (rota[0] === 'atletas') return await tratarAtletas(request, env, usuario, rota, metodo);
+    if (rota[0] === 'documentos') return await tratarDocumentos(request, env, usuario, rota, metodo);
+    if (rota[0] === 'pagamentos') return await tratarPagamentos(request, env, usuario, rota, metodo);
+    if (rota[0] === 'eventos') return await tratarEventos(request, env, usuario, rota, metodo);
+    if (rota[0] === 'avisos') return await tratarAvisos(request, env, usuario, rota, metodo);
+    if (rota[0] === 'usuarios') return await tratarUsuarios(request, env, usuario, rota, metodo);
 
     return erro('Rota não encontrada.', 404);
   } catch (e) {
