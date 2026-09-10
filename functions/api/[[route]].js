@@ -120,6 +120,12 @@ function exigirAdmin(usuario) {
   if (usuario.papel !== 'admin') return erro('Apenas administradores podem fazer isso.', 403);
   return null;
 }
+// Admin e técnicas têm acesso à operação do clube (atletas, documentos, pagamentos,
+// calendário, avisos) — só a gestão de Usuários fica exclusiva do admin (exigirAdmin acima).
+function exigirEquipe(usuario) {
+  if (usuario.papel === 'usuario') return erro('Você não tem permissão para fazer isso.', 403);
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // LOGIN / SESSÃO
@@ -176,12 +182,15 @@ async function tratarResumo(env, usuario) {
 
   const resumo = { eventosFuturos, avisosPublicados: avisos };
 
-  if (usuario.papel === 'admin') {
+  if (usuario.papel === 'admin' || usuario.papel === 'tecnica') {
     const [{ total: atletas }] = (await env.DB.prepare(`SELECT COUNT(*) as total FROM atletas`).all()).results;
     const [{ total: documentos }] = (await env.DB.prepare(`SELECT COUNT(*) as total FROM documentos`).all()).results;
     const [{ total: pendentes }] = (await env.DB.prepare(`SELECT COUNT(*) as total FROM pagamentos WHERE status='pendente'`).all()).results;
+    Object.assign(resumo, { atletas, documentos, pagamentosPendentes: pendentes });
+  }
+  if (usuario.papel === 'admin') {
     const [{ total: usuarios }] = (await env.DB.prepare(`SELECT COUNT(*) as total FROM usuarios`).all()).results;
-    Object.assign(resumo, { atletas, documentos, pagamentosPendentes: pendentes, usuarios });
+    Object.assign(resumo, { usuarios });
   }
   return json(resumo);
 }
@@ -190,7 +199,7 @@ async function tratarResumo(env, usuario) {
 // ATLETAS (somente admin)
 // ---------------------------------------------------------------------------
 async function tratarAtletas(request, env, usuario, rota, metodo) {
-  const bloqueado = exigirAdmin(usuario);
+  const bloqueado = exigirEquipe(usuario);
   if (bloqueado) return bloqueado;
   const id = rota[1];
 
@@ -228,7 +237,7 @@ async function tratarAtletas(request, env, usuario, rota, metodo) {
 // DOCUMENTOS (somente admin)
 // ---------------------------------------------------------------------------
 async function tratarDocumentos(request, env, usuario, rota, metodo) {
-  const bloqueado = exigirAdmin(usuario);
+  const bloqueado = exigirEquipe(usuario);
   if (bloqueado) return bloqueado;
   const id = rota[1];
 
@@ -260,7 +269,7 @@ async function tratarDocumentos(request, env, usuario, rota, metodo) {
 // PAGAMENTOS (somente admin)
 // ---------------------------------------------------------------------------
 async function tratarPagamentos(request, env, usuario, rota, metodo) {
-  const bloqueado = exigirAdmin(usuario);
+  const bloqueado = exigirEquipe(usuario);
   if (bloqueado) return bloqueado;
   const id = rota[1];
 
@@ -304,7 +313,7 @@ async function tratarEventos(request, env, usuario, rota, metodo) {
     return json({ eventos: results });
   }
   if (metodo === 'POST' && !id) {
-    const bloqueado = exigirAdmin(usuario);
+    const bloqueado = exigirEquipe(usuario);
     if (bloqueado) return bloqueado;
     const c = await request.json();
     if (!c.titulo || !c.inicio) return erro('Preencha título e data de início.');
@@ -316,7 +325,7 @@ async function tratarEventos(request, env, usuario, rota, metodo) {
     return json({ id: novoId });
   }
   if (metodo === 'DELETE' && id) {
-    const bloqueado = exigirAdmin(usuario);
+    const bloqueado = exigirEquipe(usuario);
     if (bloqueado) return bloqueado;
     await env.DB.prepare(`DELETE FROM eventos WHERE id=?`).bind(id).run();
     return json({ ok: true });
@@ -335,7 +344,7 @@ async function tratarAvisos(request, env, usuario, rota, metodo) {
     return json({ avisos: results });
   }
   if (metodo === 'POST' && !id) {
-    const bloqueado = exigirAdmin(usuario);
+    const bloqueado = exigirEquipe(usuario);
     if (bloqueado) return bloqueado;
     const c = await request.json();
     if (!c.imagem) return erro('Banner ausente.');
@@ -346,7 +355,7 @@ async function tratarAvisos(request, env, usuario, rota, metodo) {
     return json({ id: novoId });
   }
   if (metodo === 'DELETE' && id) {
-    const bloqueado = exigirAdmin(usuario);
+    const bloqueado = exigirEquipe(usuario);
     if (bloqueado) return bloqueado;
     await env.DB.prepare(`DELETE FROM avisos_publicados WHERE id=?`).bind(id).run();
     return json({ ok: true });
@@ -376,9 +385,11 @@ async function tratarUsuarios(request, env, usuario, rota, metodo) {
     if (existente) return erro('Este usuário já existe.');
     const { hash, salt } = await gerarHashSenha('Agita@123');
     const novoId = gerarId('us');
+    const papeisValidos = ['admin', 'tecnica', 'usuario'];
+    const papel = papeisValidos.includes(c.papel) ? c.papel : 'usuario';
     await env.DB.prepare(
       `INSERT INTO usuarios (id, usuario, senha_hash, senha_salt, nome, papel, precisa_trocar_senha, ultimo_acesso) VALUES (?,?,?,?,?,?,1,NULL)`
-    ).bind(novoId, c.usuario.trim(), hash, salt, c.nome.trim(), c.papel === 'admin' ? 'admin' : 'usuario').run();
+    ).bind(novoId, c.usuario.trim(), hash, salt, c.nome.trim(), papel).run();
     return json({ id: novoId });
   }
   if (metodo === 'POST' && id && acao === 'resetar-senha') {
