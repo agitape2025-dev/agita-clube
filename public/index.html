@@ -484,6 +484,10 @@ function formatarData(iso){
   const d = new Date(ano, mes-1, dia);
   return d.toLocaleDateString('pt-BR');
 }
+function formatarCategoria(cat){
+  const rotulos = { 'ESCOLINHA':'Escolinha', 'PRE-EQUIPE':'Pré-equipe', 'ALTO RENDIMENTO':'Alto rendimento' };
+  return rotulos[cat] || '—';
+}
 function formatarDataHora(iso){
   if(!iso) return 'nunca';
   const d = new Date(iso);
@@ -697,6 +701,7 @@ async function renderAtletas(){
       <div><h2>Atletas</h2><p>Cadastro e acompanhamento das atletas do clube.</p></div>
       <button class="btn btn-primario" onclick="abrirFormAtleta()">+ Nova atleta</button>
     </div>
+    <div class="grade-dashboard" id="resumo-categorias" style="margin-bottom:22px;"></div>
     <div class="cartao">
       <div class="campo" style="max-width:320px;margin-bottom:0;">
         <input type="text" id="busca-atleta" placeholder="Buscar por nome..." oninput="renderTabelaAtletas()">
@@ -708,7 +713,34 @@ async function renderAtletas(){
     const dados = await api('atletas');
     atletasCache = dados.atletas;
   }catch(e){ atletasCache = []; }
+  renderResumoCategoriasAtletas();
   renderTabelaAtletas();
+}
+function renderResumoCategoriasAtletas(){
+  const divisoes = [
+    { chave:'ESCOLINHA', rotulo:'Escolinha' },
+    { chave:'PRE-EQUIPE', rotulo:'Pré-equipe' },
+    { chave:'ALTO RENDIMENTO', rotulo:'Alto rendimento' }
+  ];
+  const alvo = document.getElementById('resumo-categorias');
+  if(!alvo) return;
+  const semCategoria = atletasCache.filter(a=>!divisoes.some(d=>d.chave===a.categoria)).length;
+  alvo.innerHTML = `
+    <div class="cartao-atalho" style="cursor:default;">
+      <div class="numero">${atletasCache.length}</div>
+      <div class="rotulo">Total de atletas</div>
+    </div>
+    ${divisoes.map(d=>`
+      <div class="cartao-atalho" style="cursor:default;">
+        <div class="numero">${atletasCache.filter(a=>a.categoria===d.chave).length}</div>
+        <div class="rotulo">${d.rotulo}</div>
+      </div>`).join('')}
+    ${semCategoria>0 ? `
+      <div class="cartao-atalho" style="cursor:default;">
+        <div class="numero">${semCategoria}</div>
+        <div class="rotulo">Sem categoria definida</div>
+      </div>` : ''}
+  `;
 }
 function renderTabelaAtletas(){
   const busca = (document.getElementById('busca-atleta')?.value || '').toLowerCase();
@@ -727,7 +759,7 @@ function renderTabelaAtletas(){
             <td>${a.foto ? `<img class="avatar-mini" src="${a.foto}">` : `<span class="avatar-mini"></span>`}</td>
             <td>${a.nome}</td>
             <td>${formatarData(a.nascimento)}</td>
-            <td>${a.categoria||'—'}</td>
+            <td>${formatarCategoria(a.categoria)}</td>
             <td>${a.responsavel||'—'}</td>
             <td>${a.telefone||'—'}</td>
             <td style="white-space:nowrap;">
@@ -748,7 +780,14 @@ function abrirFormAtleta(id){
     <div class="campo"><label>Nome completo</label><input type="text" id="af-nome" value="${a?a.nome:''}"></div>
     <div class="linha-form">
       <div class="campo"><label>Data de nascimento</label><input type="date" id="af-nascimento" value="${a?(a.nascimento||''):''}"></div>
-      <div class="campo"><label>Categoria</label><input type="text" id="af-categoria" placeholder="Ex: Pré-mirim" value="${a?(a.categoria||''):''}"></div>
+      <div class="campo"><label>Categoria</label>
+        <select id="af-categoria">
+          <option value="">Selecione...</option>
+          <option value="ESCOLINHA" ${a&&a.categoria==='ESCOLINHA'?'selected':''}>Escolinha</option>
+          <option value="PRE-EQUIPE" ${a&&a.categoria==='PRE-EQUIPE'?'selected':''}>Pré-equipe</option>
+          <option value="ALTO RENDIMENTO" ${a&&a.categoria==='ALTO RENDIMENTO'?'selected':''}>Alto rendimento</option>
+        </select>
+      </div>
     </div>
     <div class="linha-form">
       <div class="campo"><label>Responsável</label><input type="text" id="af-responsavel" value="${a?(a.responsavel||''):''}"></div>
