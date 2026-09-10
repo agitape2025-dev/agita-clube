@@ -267,6 +267,7 @@
   .selo-confirmado{background:rgba(62,142,90,0.12);color:var(--sucesso);}
   .selo-admin{background:rgba(19,42,82,0.12);color:var(--azul-escuro);}
   .selo-usuario{background:rgba(62,107,176,0.12);color:var(--azul);}
+  .selo-tecnica{background:rgba(242,137,43,0.14);color:var(--laranja-forte);}
 
   .vazio{
     text-align:center;
@@ -418,6 +419,17 @@
 let usuarioLogado = null;
 let secaoAtual = 'inicio';
 
+function rotuloPapel(papel){
+  if(papel==='admin') return 'Administrador';
+  if(papel==='tecnica') return 'Técnica';
+  return 'Usuário';
+}
+// admin e técnica operam o clube (atletas, documentos, pagamentos, calendário, avisos);
+// "usuario" (responsável/família) só acompanha calendário e avisos já publicados.
+function ehEquipe(){
+  return usuarioLogado.papel !== 'usuario';
+}
+
 // caches simples em memória (só para não ter que buscar de novo a cada clique
 // dentro da mesma tela, ex: filtro de busca)
 let atletasCache = [];
@@ -546,7 +558,7 @@ function finalizarLogin(){
   document.getElementById('login-senha').value='';
   document.getElementById('form-login').style.display='block';
   document.getElementById('form-troca-senha').style.display='none';
-  document.getElementById('chip-usuario').textContent = usuarioLogado.nome + ' · ' + (usuarioLogado.papel==='admin'?'Administrador':'Usuário');
+  document.getElementById('chip-usuario').textContent = usuarioLogado.nome + ' · ' + rotuloPapel(usuarioLogado.papel);
   montarMenu();
   irPara('inicio');
 }
@@ -568,9 +580,9 @@ window.addEventListener('DOMContentLoaded', async ()=>{
 /* ---------------------------- MENU / NAVEGAÇÃO ---------------------------- */
 const ITENS_MENU = [
   {id:'inicio', rotulo:'Início'},
-  {id:'atletas', rotulo:'Atletas', somenteAdmin:true},
-  {id:'documentos', rotulo:'Documentos', somenteAdmin:true},
-  {id:'pagamentos', rotulo:'Pagamentos', somenteAdmin:true},
+  {id:'atletas', rotulo:'Atletas', somenteEquipe:true},
+  {id:'documentos', rotulo:'Documentos', somenteEquipe:true},
+  {id:'pagamentos', rotulo:'Pagamentos', somenteEquipe:true},
   {id:'calendario', rotulo:'Calendário'},
   {id:'avisos', rotulo:'Avisos'},
   {id:'usuarios', rotulo:'Usuários', somenteAdmin:true},
@@ -581,6 +593,7 @@ function montarMenu(){
   desktop.innerHTML=''; mobile.innerHTML='';
   ITENS_MENU.forEach(item=>{
     if(item.somenteAdmin && usuarioLogado.papel!=='admin') return;
+    if(item.somenteEquipe && !ehEquipe()) return;
     const b1 = document.createElement('button');
     b1.textContent = item.rotulo; b1.dataset.secao = item.id;
     b1.onclick = ()=>irPara(item.id);
@@ -630,7 +643,7 @@ async function renderInicio(){
   let resumo;
   try{ resumo = await api('resumo'); }catch(e){ return; }
 
-  const cartoesAdmin = usuarioLogado.papel==='admin' ? `
+  const cartoesEquipe = ehEquipe() ? `
     <div class="cartao-atalho" onclick="irPara('atletas')">
       <div class="numero">${resumo.atletas}</div>
       <div class="rotulo">Atletas cadastradas</div>
@@ -642,7 +655,9 @@ async function renderInicio(){
     <div class="cartao-atalho" onclick="irPara('documentos')">
       <div class="numero">${resumo.documentos}</div>
       <div class="rotulo">Documentos guardados</div>
-    </div>
+    </div>` : '';
+
+  const cartaoUsuarios = usuarioLogado.papel==='admin' ? `
     <div class="cartao-atalho" onclick="irPara('usuarios')">
       <div class="numero">${resumo.usuarios}</div>
       <div class="rotulo">Usuários do sistema</div>
@@ -655,7 +670,7 @@ async function renderInicio(){
     </div>
     <div class="cartao-atalho" onclick="irPara('avisos')">
       <div class="numero">${resumo.avisosPublicados}</div>
-      <div class="rotulo">${usuarioLogado.papel==='admin' ? 'Avisos publicados' : 'Ver avisos do clube'}</div>
+      <div class="rotulo">${ehEquipe() ? 'Avisos publicados' : 'Ver avisos do clube'}</div>
     </div>
   `;
 
@@ -666,7 +681,7 @@ async function renderInicio(){
         <p>Aqui está um resumo rápido do clube hoje.</p>
       </div>
     </div>
-    <div class="grade-dashboard">${cartoesComuns}${cartoesAdmin}</div>
+    <div class="grade-dashboard">${cartoesComuns}${cartoesEquipe}${cartaoUsuarios}</div>
   `;
 }
 
@@ -675,7 +690,7 @@ async function renderInicio(){
    ================================================================ */
 let fotoAtletaTemp = null;
 async function renderAtletas(){
-  if(usuarioLogado.papel!=='admin'){ irPara('inicio'); return; }
+  if(!ehEquipe()){ irPara('inicio'); return; }
   const c = document.getElementById('conteudo');
   c.innerHTML = `
     <div class="cabecalho-secao">
@@ -783,7 +798,7 @@ async function excluirAtleta(id){
    ================================================================ */
 let arquivoDocTemp = null;
 async function renderDocumentos(){
-  if(usuarioLogado.papel!=='admin'){ irPara('inicio'); return; }
+  if(!ehEquipe()){ irPara('inicio'); return; }
   const c = document.getElementById('conteudo');
   c.innerHTML = `<div class="cartao">Carregando...</div>`;
   try{
@@ -878,7 +893,7 @@ async function excluirDocumento(id){
    PAGAMENTOS (somente admin)
    ================================================================ */
 async function renderPagamentos(){
-  if(usuarioLogado.papel!=='admin'){ irPara('inicio'); return; }
+  if(!ehEquipe()){ irPara('inicio'); return; }
   const c = document.getElementById('conteudo');
   c.innerHTML = `
     <div class="cabecalho-secao">
@@ -980,7 +995,7 @@ let calMesAtual = new Date().getMonth();
 let calAnoAtual = new Date().getFullYear();
 const NOMES_MES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 async function renderCalendario(){
-  const ehAdmin = usuarioLogado.papel==='admin';
+  const ehAdmin = ehEquipe();
   const c = document.getElementById('conteudo');
   c.innerHTML = `
     <div class="cabecalho-secao">
@@ -1016,7 +1031,7 @@ function mudarMesCal(delta){
   desenharCalendario();
 }
 function desenharCalendario(){
-  const ehAdmin = usuarioLogado.papel==='admin';
+  const ehAdmin = ehEquipe();
   document.getElementById('cal-titulo').textContent = NOMES_MES[calMesAtual] + ' ' + calAnoAtual;
   const grade = document.getElementById('grade-calendario');
   const primeiroDia = new Date(calAnoAtual, calMesAtual, 1);
@@ -1056,7 +1071,7 @@ function desenharCalendario(){
   </tbody></table>`;
 }
 function abrirFormEvento(){
-  if(usuarioLogado.papel!=='admin') return;
+  if(!ehEquipe()) return;
   abrirModal(`
     <h3>Novo evento</h3>
     <div class="campo"><label>Título</label><input type="text" id="ef-titulo"></div>
@@ -1112,7 +1127,7 @@ const TIPOS_AVISO = [
 let avisoTipoAtual = 'cancelada';
 let avisoFotoTemp = null;
 async function renderAvisos(){
-  const ehAdmin = usuarioLogado.papel==='admin';
+  const ehAdmin = ehEquipe();
   const c = document.getElementById('conteudo');
 
   if(!ehAdmin){
@@ -1165,7 +1180,7 @@ async function renderAvisos(){
   await renderGaleriaAvisos();
 }
 async function renderGaleriaAvisos(){
-  const ehAdmin = usuarioLogado.papel==='admin';
+  const ehAdmin = ehEquipe();
   try{
     const dados = await api('avisos');
     avisosCache = dados.avisos;
@@ -1375,7 +1390,7 @@ function renderTabelaUsuarios(){
           <tr>
             <td>${u.usuario}</td>
             <td>${u.nome}</td>
-            <td><span class="selo ${u.papel==='admin'?'selo-admin':'selo-usuario'}">${u.papel==='admin'?'Admin':'Usuário'}</span></td>
+            <td><span class="selo selo-${u.papel}">${rotuloPapel(u.papel)}</span></td>
             <td>${formatarDataHora(u.ultimo_acesso)}</td>
             <td>${u.precisa_trocar_senha ? '<span class="selo selo-pendente">Troca pendente</span>' : '<span class="selo selo-confirmado">OK</span>'}</td>
             <td style="white-space:nowrap;">
@@ -1393,7 +1408,7 @@ function abrirFormUsuario(){
     <div class="campo"><label>Nome completo</label><input type="text" id="uf-nome"></div>
     <div class="campo"><label>Usuário (login)</label><input type="text" id="uf-usuario"></div>
     <div class="campo"><label>Papel</label>
-      <select id="uf-papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select>
+      <select id="uf-papel"><option value="usuario">Usuário</option><option value="tecnica">Técnica</option><option value="admin">Administrador</option></select>
     </div>
     <p style="font-size:0.82rem;color:var(--texto-suave);">A senha inicial será <b>Agita@123</b> — o usuário será obrigado a trocá-la no primeiro acesso.</p>
     <div class="barra-acoes">
