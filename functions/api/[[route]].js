@@ -212,16 +212,16 @@ async function tratarAtletas(request, env, usuario, rota, metodo) {
     if (!c.nome || !c.nome.trim()) return erro('Informe o nome da atleta.');
     const novoId = gerarId('at');
     await env.DB.prepare(
-      `INSERT INTO atletas (id, nome, nascimento, categoria, responsavel, telefone, foto) VALUES (?,?,?,?,?,?,?)`
-    ).bind(novoId, c.nome.trim(), c.nascimento || null, c.categoria || null, c.responsavel || null, c.telefone || null, c.foto || null).run();
+      `INSERT INTO atletas (id, nome, nascimento, categoria, setor, responsavel, telefone, foto) VALUES (?,?,?,?,?,?,?,?)`
+    ).bind(novoId, c.nome.trim(), c.nascimento || null, c.categoria || null, c.setor || null, c.responsavel || null, c.telefone || null, c.foto || null).run();
     return json({ id: novoId });
   }
   if (metodo === 'PUT' && id) {
     const c = await request.json();
     if (!c.nome || !c.nome.trim()) return erro('Informe o nome da atleta.');
     await env.DB.prepare(
-      `UPDATE atletas SET nome=?, nascimento=?, categoria=?, responsavel=?, telefone=?, foto=? WHERE id=?`
-    ).bind(c.nome.trim(), c.nascimento || null, c.categoria || null, c.responsavel || null, c.telefone || null, c.foto || null, id).run();
+      `UPDATE atletas SET nome=?, nascimento=?, categoria=?, setor=?, responsavel=?, telefone=?, foto=? WHERE id=?`
+    ).bind(c.nome.trim(), c.nascimento || null, c.categoria || null, c.setor || null, c.responsavel || null, c.telefone || null, c.foto || null, id).run();
     return json({ ok: true });
   }
   if (metodo === 'DELETE' && id) {
