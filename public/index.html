@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AGITA — Portal do Clube</title>
+<title>AGITA — Portal do Agita</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -216,6 +216,21 @@
   }
   .cabecalho-secao h2{margin:0 0 4px;font-size:1.5rem;color:var(--azul-escuro);}
   .cabecalho-secao p{margin:0;color:var(--texto-suave);font-size:0.9rem;}
+
+  .marca-dagua-inicio{position:relative;}
+  .marca-dagua-inicio::before{
+    content:"";
+    position:fixed;
+    top:60px; left:0; right:0; bottom:0;
+    background-image:var(--logo-mini);
+    background-repeat:no-repeat;
+    background-position:center 42vh;
+    background-size:420px;
+    opacity:0.05;
+    pointer-events:none;
+    z-index:0;
+  }
+  .marca-dagua-inicio > *{position:relative;z-index:1;}
 
   .grade-dashboard{
     display:grid;
@@ -826,13 +841,15 @@ async function renderInicio(){
   `;
 
   c.innerHTML = `
-    <div class="cabecalho-secao">
-      <div>
-        <h2>Olá, ${usuarioLogado.nome.split(' ')[0]} 👋</h2>
-        <p>Aqui está um resumo rápido do clube hoje.</p>
+    <div class="marca-dagua-inicio">
+      <div class="cabecalho-secao">
+        <div>
+          <h2>Olá, ${usuarioLogado.nome.split(' ')[0]} 👋</h2>
+          <p>Aqui está um resumo rápido do clube hoje.</p>
+        </div>
       </div>
+      <div class="grade-dashboard">${cartoesComuns}${cartoesEquipe}${cartaoUsuarios}</div>
     </div>
-    <div class="grade-dashboard">${cartoesComuns}${cartoesEquipe}${cartaoUsuarios}</div>
   `;
 }
 
