@@ -484,9 +484,9 @@ function formatarData(iso){
   const d = new Date(ano, mes-1, dia);
   return d.toLocaleDateString('pt-BR');
 }
-function formatarCategoria(cat){
+function formatarSetor(setor){
   const rotulos = { 'ESCOLINHA':'Escolinha', 'PRE-EQUIPE':'Pré-equipe', 'ALTO RENDIMENTO':'Alto rendimento' };
-  return rotulos[cat] || '—';
+  return rotulos[setor] || '—';
 }
 function formatarDataHora(iso){
   if(!iso) return 'nunca';
@@ -701,7 +701,7 @@ async function renderAtletas(){
       <div><h2>Atletas</h2><p>Cadastro e acompanhamento das atletas do clube.</p></div>
       <button class="btn btn-primario" onclick="abrirFormAtleta()">+ Nova atleta</button>
     </div>
-    <div class="grade-dashboard" id="resumo-categorias" style="margin-bottom:22px;"></div>
+    <div class="grade-dashboard" id="resumo-setores" style="margin-bottom:22px;"></div>
     <div class="cartao">
       <div class="campo" style="max-width:320px;margin-bottom:0;">
         <input type="text" id="busca-atleta" placeholder="Buscar por nome..." oninput="renderTabelaAtletas()">
@@ -713,32 +713,32 @@ async function renderAtletas(){
     const dados = await api('atletas');
     atletasCache = dados.atletas;
   }catch(e){ atletasCache = []; }
-  renderResumoCategoriasAtletas();
+  renderResumoSetoresAtletas();
   renderTabelaAtletas();
 }
-function renderResumoCategoriasAtletas(){
-  const divisoes = [
+function renderResumoSetoresAtletas(){
+  const setores = [
     { chave:'ESCOLINHA', rotulo:'Escolinha' },
     { chave:'PRE-EQUIPE', rotulo:'Pré-equipe' },
     { chave:'ALTO RENDIMENTO', rotulo:'Alto rendimento' }
   ];
-  const alvo = document.getElementById('resumo-categorias');
+  const alvo = document.getElementById('resumo-setores');
   if(!alvo) return;
-  const semCategoria = atletasCache.filter(a=>!divisoes.some(d=>d.chave===a.categoria)).length;
+  const semSetor = atletasCache.filter(a=>!setores.some(s=>s.chave===a.setor)).length;
   alvo.innerHTML = `
     <div class="cartao-atalho" style="cursor:default;">
       <div class="numero">${atletasCache.length}</div>
       <div class="rotulo">Total de atletas</div>
     </div>
-    ${divisoes.map(d=>`
+    ${setores.map(s=>`
       <div class="cartao-atalho" style="cursor:default;">
-        <div class="numero">${atletasCache.filter(a=>a.categoria===d.chave).length}</div>
-        <div class="rotulo">${d.rotulo}</div>
+        <div class="numero">${atletasCache.filter(a=>a.setor===s.chave).length}</div>
+        <div class="rotulo">${s.rotulo}</div>
       </div>`).join('')}
-    ${semCategoria>0 ? `
+    ${semSetor>0 ? `
       <div class="cartao-atalho" style="cursor:default;">
-        <div class="numero">${semCategoria}</div>
-        <div class="rotulo">Sem categoria definida</div>
+        <div class="numero">${semSetor}</div>
+        <div class="rotulo">Sem setor definido</div>
       </div>` : ''}
   `;
 }
@@ -752,14 +752,15 @@ function renderTabelaAtletas(){
   }
   alvo.innerHTML = `
     <table>
-      <thead><tr><th></th><th>Nome</th><th>Nascimento</th><th>Categoria</th><th>Responsável</th><th>Telefone</th><th></th></tr></thead>
+      <thead><tr><th></th><th>Nome</th><th>Nascimento</th><th>Categoria</th><th>Setor</th><th>Responsável</th><th>Telefone</th><th></th></tr></thead>
       <tbody>
         ${lista.map(a=>`
           <tr>
             <td>${a.foto ? `<img class="avatar-mini" src="${a.foto}">` : `<span class="avatar-mini"></span>`}</td>
             <td>${a.nome}</td>
             <td>${formatarData(a.nascimento)}</td>
-            <td>${formatarCategoria(a.categoria)}</td>
+            <td>${a.categoria||'—'}</td>
+            <td>${formatarSetor(a.setor)}</td>
             <td>${a.responsavel||'—'}</td>
             <td>${a.telefone||'—'}</td>
             <td style="white-space:nowrap;">
@@ -783,9 +784,21 @@ function abrirFormAtleta(id){
       <div class="campo"><label>Categoria</label>
         <select id="af-categoria">
           <option value="">Selecione...</option>
-          <option value="ESCOLINHA" ${a&&a.categoria==='ESCOLINHA'?'selected':''}>Escolinha</option>
-          <option value="PRE-EQUIPE" ${a&&a.categoria==='PRE-EQUIPE'?'selected':''}>Pré-equipe</option>
-          <option value="ALTO RENDIMENTO" ${a&&a.categoria==='ALTO RENDIMENTO'?'selected':''}>Alto rendimento</option>
+          <option value="Mirim" ${a&&a.categoria==='Mirim'?'selected':''}>Mirim</option>
+          <option value="Pré-Infantil" ${a&&a.categoria==='Pré-Infantil'?'selected':''}>Pré-Infantil</option>
+          <option value="Infantil" ${a&&a.categoria==='Infantil'?'selected':''}>Infantil</option>
+          <option value="Juvenil" ${a&&a.categoria==='Juvenil'?'selected':''}>Juvenil</option>
+          <option value="Adulto" ${a&&a.categoria==='Adulto'?'selected':''}>Adulto</option>
+        </select>
+      </div>
+    </div>
+    <div class="linha-form">
+      <div class="campo"><label>Setor</label>
+        <select id="af-setor">
+          <option value="">Selecione...</option>
+          <option value="ESCOLINHA" ${a&&a.setor==='ESCOLINHA'?'selected':''}>Escolinha</option>
+          <option value="PRE-EQUIPE" ${a&&a.setor==='PRE-EQUIPE'?'selected':''}>Pré-Equipe</option>
+          <option value="ALTO RENDIMENTO" ${a&&a.setor==='ALTO RENDIMENTO'?'selected':''}>Alto Rendimento</option>
         </select>
       </div>
     </div>
@@ -814,6 +827,7 @@ async function salvarAtleta(id){
     nome,
     nascimento: document.getElementById('af-nascimento').value,
     categoria: document.getElementById('af-categoria').value.trim(),
+    setor: document.getElementById('af-setor').value.trim(),
     responsavel: document.getElementById('af-responsavel').value.trim(),
     telefone: document.getElementById('af-telefone').value.trim(),
     foto: fotoAtletaTemp
