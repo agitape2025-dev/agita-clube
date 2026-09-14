@@ -109,6 +109,10 @@ export async function onRequest(context) {
     if (rota[0] === 'eventos') return await tratarEventos(request, env, usuario, rota, metodo);
     if (rota[0] === 'avisos') return await tratarAvisos(request, env, usuario, rota, metodo);
     if (rota[0] === 'usuarios') return await tratarUsuarios(request, env, usuario, rota, metodo);
+    if (rota[0] === 'mensalidades') return await tratarMensalidades(request, env, usuario, rota, metodo);
+    if (rota[0] === 'taxas') return await tratarTaxas(request, env, usuario, rota, metodo);
+    if (rota[0] === 'despesas') return await tratarDespesas(request, env, usuario, rota, metodo);
+    if (rota[0] === 'financeiro-resumo' && metodo === 'GET') return await tratarFinanceiroResumo(env, usuario);
 
     return erro('Rota não encontrada.', 404);
   } catch (e) {
@@ -130,6 +134,12 @@ function exigirEquipe(usuario) {
 // mas é somente-leitura — usado nas rotas de escrita (POST/PUT/PATCH/DELETE).
 function exigirGerenciar(usuario) {
   if (usuario.papel !== 'admin' && usuario.papel !== 'tecnica') return erro('Você tem acesso apenas para visualização.', 403);
+  return null;
+}
+// Módulo Financeiro (mensalidades, taxas, despesas): só admin e o papel "financeiro"
+// têm acesso — nem técnica, nem diretoria, nem usuário comum enxergam esse menu.
+function exigirFinanceiro(usuario) {
+  if (usuario.papel !== 'admin' && usuario.papel !== 'financeiro') return erro('Você não tem acesso ao módulo financeiro.', 403);
   return null;
 }
 
@@ -407,7 +417,7 @@ async function tratarUsuarios(request, env, usuario, rota, metodo) {
     if (existente) return erro('Este usuário já existe.');
     const { hash, salt } = await gerarHashSenha('Agita@123');
     const novoId = gerarId('us');
-    const papeisValidos = ['admin', 'tecnica', 'diretoria', 'usuario'];
+    const papeisValidos = ['admin', 'tecnica', 'diretoria', 'financeiro', 'usuario'];
     const papel = papeisValidos.includes(c.papel) ? c.papel : 'usuario';
     await env.DB.prepare(
       `INSERT INTO usuarios (id, usuario, senha_hash, senha_salt, nome, papel, precisa_trocar_senha, ultimo_acesso) VALUES (?,?,?,?,?,?,1,NULL)`
@@ -428,4 +438,154 @@ async function tratarUsuarios(request, env, usuario, rota, metodo) {
     return json({ ok: true });
   }
   return erro('Rota inválida.', 404);
+}
+
+// ---------------------------------------------------------------------------
+// FINANCEIRO — Mensalidades, Taxas e Cobranças, Despesas
+// Leitura e escrita liberadas apenas para admin e para o papel "financeiro"
+// (exigirFinanceiro) — ninguém mais enxerga esse menu.
+// ---------------------------------------------------------------------------
+function statusMensalidade(m, hojeISO) {
+  if (m.data_pagamento) return 'pago';
+  if (m.vencimento < hojeISO) return 'inadimplente';
+  return 'a_vencer';
+}
+function diasAtraso(m, hojeISO) {
+  if (m.data_pagamento || m.vencimento >= hojeISO) return 0;
+  const umDia = 1000 * 60 * 60 * 24;
+  return Math.round((new Date(hojeISO) - new Date(m.vencimento)) / umDia);
+}
+
+async function tratarMensalidades(request, env, usuario, rota, metodo) {
+  const bloqueado = exigirFinanceiro(usuario);
+  if (bloqueado) return bloqueado;
+  const id = rota[1];
+  const hojeISO = new Date().toISOString().slice(0, 10);
+
+  if (metodo === 'GET' && !id) {
+    const { results } = await env.DB.prepare(
+      `SELECT m.*, a.nome as atleta_nome, a.responsavel, a.telefone
+       FROM mensalidades m LEFT JOIN atletas a ON a.id = m.atleta_id
+       ORDER BY m.mes_referencia DESC, a.nome`
+    ).all();
+    const comStatus = results.map(m => ({
+      ...m,
+      status: statusMensalidade(m, hojeISO),
+      diasAtraso: diasAtraso(m, hojeISO)
+    }));
+    return json({ mensalidades: comStatus });
+  }
+  if (metodo === 'POST' && !id) {
+    const c = await request.json();
+    if (!c.atletaId || !c.mesReferencia || !c.valor || !c.vencimento) return erro('Preencha atleta, mês, valor e vencimento.');
+    const novoId = gerarId('mn');
+    await env.DB.prepare(
+      `INSERT INTO mensalidades (id, atleta_id, mes_referencia, valor, vencimento, data_pagamento, valor_pago, observacao) VALUES (?,?,?,?,?,NULL,NULL,?)`
+    ).bind(novoId, c.atletaId, c.mesReferencia, c.valor, c.vencimento, c.observacao || null).run();
+    return json({ id: novoId });
+  }
+  if (metodo === 'PUT' && id) {
+    const c = await request.json();
+    await env.DB.prepare(
+      `UPDATE mensalidades SET data_pagamento=?, valor_pago=? WHERE id=?`
+    ).bind(c.dataPagamento || null, c.valorPago || null, id).run();
+    return json({ ok: true });
+  }
+  if (metodo === 'DELETE' && id) {
+    await env.DB.prepare(`DELETE FROM mensalidades WHERE id=?`).bind(id).run();
+    return json({ ok: true });
+  }
+  return erro('Rota inválida.', 404);
+}
+
+async function tratarTaxas(request, env, usuario, rota, metodo) {
+  const bloqueado = exigirFinanceiro(usuario);
+  if (bloqueado) return bloqueado;
+  const id = rota[1];
+
+  if (metodo === 'GET' && !id) {
+    const { results } = await env.DB.prepare(
+      `SELECT t.*, a.nome as atleta_nome FROM taxas t LEFT JOIN atletas a ON a.id = t.atleta_id ORDER BY t.status, t.vencimento`
+    ).all();
+    return json({ taxas: results });
+  }
+  if (metodo === 'POST' && !id) {
+    const c = await request.json();
+    if (!c.tipo || !c.valor) return erro('Informe o tipo e o valor.');
+    const novoId = gerarId('tx');
+    await env.DB.prepare(
+      `INSERT INTO taxas (id, atleta_id, tipo, descricao, valor, vencimento, data_pagamento, status) VALUES (?,?,?,?,?,?,NULL,'pendente')`
+    ).bind(novoId, c.atletaId || null, c.tipo, c.descricao || null, c.valor, c.vencimento || null).run();
+    return json({ id: novoId });
+  }
+  if (metodo === 'PATCH' && id) {
+    const atual = await env.DB.prepare(`SELECT status FROM taxas WHERE id=?`).bind(id).first();
+    if (!atual) return erro('Taxa não encontrada.', 404);
+    const novoStatus = atual.status === 'pago' ? 'pendente' : 'pago';
+    const dataPagamento = novoStatus === 'pago' ? new Date().toISOString().slice(0, 10) : null;
+    await env.DB.prepare(`UPDATE taxas SET status=?, data_pagamento=? WHERE id=?`).bind(novoStatus, dataPagamento, id).run();
+    return json({ status: novoStatus });
+  }
+  if (metodo === 'DELETE' && id) {
+    await env.DB.prepare(`DELETE FROM taxas WHERE id=?`).bind(id).run();
+    return json({ ok: true });
+  }
+  return erro('Rota inválida.', 404);
+}
+
+async function tratarDespesas(request, env, usuario, rota, metodo) {
+  const bloqueado = exigirFinanceiro(usuario);
+  if (bloqueado) return bloqueado;
+  const id = rota[1];
+
+  if (metodo === 'GET' && !id) {
+    const { results } = await env.DB.prepare(`SELECT * FROM despesas ORDER BY data DESC`).all();
+    return json({ despesas: results });
+  }
+  if (metodo === 'POST' && !id) {
+    const c = await request.json();
+    if (!c.descricao || !c.categoria || !c.valor || !c.data) return erro('Preencha descrição, categoria, valor e data.');
+    const novoId = gerarId('ds');
+    await env.DB.prepare(
+      `INSERT INTO despesas (id, descricao, categoria, valor, data, rateado_atletas, centro_custo) VALUES (?,?,?,?,?,?,?)`
+    ).bind(novoId, c.descricao.trim(), c.categoria, c.valor, c.data, c.rateado ? 1 : 0, c.centroCusto || null).run();
+    return json({ id: novoId });
+  }
+  if (metodo === 'DELETE' && id) {
+    await env.DB.prepare(`DELETE FROM despesas WHERE id=?`).bind(id).run();
+    return json({ ok: true });
+  }
+  return erro('Rota inválida.', 404);
+}
+
+async function tratarFinanceiroResumo(env, usuario) {
+  const bloqueado = exigirFinanceiro(usuario);
+  if (bloqueado) return bloqueado;
+  const hojeISO = new Date().toISOString().slice(0, 10);
+
+  const { results: mensalidades } = await env.DB.prepare(`SELECT * FROM mensalidades`).all();
+  const inadimplentes = mensalidades.filter(m => statusMensalidade(m, hojeISO) === 'inadimplente');
+  const recebidoMensalidades = mensalidades.filter(m => m.data_pagamento).reduce((s, m) => s + (m.valor_pago || m.valor), 0);
+  const emAtrasoValor = inadimplentes.reduce((s, m) => s + m.valor, 0);
+  const atletasInadimplentesUnicos = new Set(inadimplentes.map(m => m.atleta_id)).size;
+
+  const { results: taxas } = await env.DB.prepare(`SELECT * FROM taxas`).all();
+  const taxasPendentes = taxas.filter(t => t.status === 'pendente');
+  const recebidoTaxas = taxas.filter(t => t.status === 'pago').reduce((s, t) => s + t.valor, 0);
+
+  const { results: despesas } = await env.DB.prepare(`SELECT * FROM despesas`).all();
+  const totalDespesas = despesas.reduce((s, d) => s + d.valor, 0);
+
+  const totalReceitas = recebidoMensalidades + recebidoTaxas;
+  const saldo = totalReceitas - totalDespesas;
+
+  return json({
+    totalReceitas, totalDespesas, saldo,
+    recebidoMensalidades, recebidoTaxas,
+    atletasInadimplentesUnicos,
+    parcelasInadimplentes: inadimplentes.length,
+    valorEmAtraso: emAtrasoValor,
+    taxasPendentesQtd: taxasPendentes.length,
+    taxasPendentesValor: taxasPendentes.reduce((s, t) => s + t.valor, 0)
+  });
 }
