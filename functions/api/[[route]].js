@@ -110,6 +110,7 @@ export async function onRequest(context) {
     if (rota[0] === 'avisos') return await tratarAvisos(request, env, usuario, rota, metodo);
     if (rota[0] === 'usuarios') return await tratarUsuarios(request, env, usuario, rota, metodo);
     if (rota[0] === 'mensalidades') return await tratarMensalidades(request, env, usuario, rota, metodo);
+    if (rota[0] === 'valores-mensalidade') return await tratarValoresMensalidade(request, env, usuario, rota, metodo);
     if (rota[0] === 'taxas') return await tratarTaxas(request, env, usuario, rota, metodo);
     if (rota[0] === 'despesas') return await tratarDespesas(request, env, usuario, rota, metodo);
     if (rota[0] === 'financeiro-resumo' && metodo === 'GET') return await tratarFinanceiroResumo(env, usuario);
@@ -121,19 +122,19 @@ export async function onRequest(context) {
 }
 
 function exigirAdmin(usuario) {
-  if (usuario.papel !== 'admin') return erro('Apenas administradores podem fazer isso.', 403);
+  // Financeiro tem as mesmas funções do Admin (inclusive gestão de Usuários).
+  if (usuario.papel !== 'admin' && usuario.papel !== 'financeiro') return erro('Apenas administradores podem fazer isso.', 403);
   return null;
 }
-// Admin, técnica e diretoria têm acesso à operação do clube (atletas, documentos, pagamentos,
-// calendário, avisos) — só a gestão de Usuários fica exclusiva do admin (exigirAdmin acima).
+// Admin, técnica, diretoria e financeiro têm acesso à operação do clube (atletas, documentos,
+// pagamentos, calendário, avisos) — só o papel "usuario" (responsável/família) fica de fora.
 function exigirEquipe(usuario) {
   if (usuario.papel === 'usuario') return erro('Você não tem permissão para fazer isso.', 403);
   return null;
 }
-// Só admin e técnica podem criar/editar/excluir dados. Diretoria enxerga tudo (via exigirEquipe)
-// mas é somente-leitura — usado nas rotas de escrita (POST/PUT/PATCH/DELETE).
+// Financeiro tem as mesmas funções do Admin, então também pode criar/editar/excluir dados.
 function exigirGerenciar(usuario) {
-  if (usuario.papel !== 'admin' && usuario.papel !== 'tecnica') return erro('Você tem acesso apenas para visualização.', 403);
+  if (usuario.papel !== 'admin' && usuario.papel !== 'tecnica' && usuario.papel !== 'financeiro') return erro('Você tem acesso apenas para visualização.', 403);
   return null;
 }
 // Módulo Financeiro (mensalidades, taxas, despesas): só admin e o papel "financeiro"
@@ -198,13 +199,13 @@ async function tratarResumo(env, usuario) {
 
   const resumo = { eventosFuturos, avisosPublicados: avisos };
 
-  if (usuario.papel === 'admin' || usuario.papel === 'tecnica' || usuario.papel === 'diretoria') {
+  if (usuario.papel === 'admin' || usuario.papel === 'tecnica' || usuario.papel === 'diretoria' || usuario.papel === 'financeiro') {
     const [{ total: atletas }] = (await env.DB.prepare(`SELECT COUNT(*) as total FROM atletas`).all()).results;
     const [{ total: documentos }] = (await env.DB.prepare(`SELECT COUNT(*) as total FROM documentos`).all()).results;
     const [{ total: pendentes }] = (await env.DB.prepare(`SELECT COUNT(*) as total FROM pagamentos WHERE status='pendente'`).all()).results;
     Object.assign(resumo, { atletas, documentos, pagamentosPendentes: pendentes });
   }
-  if (usuario.papel === 'admin') {
+  if (usuario.papel === 'admin' || usuario.papel === 'financeiro') {
     const [{ total: usuarios }] = (await env.DB.prepare(`SELECT COUNT(*) as total FROM usuarios`).all()).results;
     Object.assign(resumo, { usuarios });
   }
@@ -475,13 +476,50 @@ async function tratarMensalidades(request, env, usuario, rota, metodo) {
     }));
     return json({ mensalidades: comStatus });
   }
+  if (metodo === 'POST' && id === 'gerar-ano') {
+    const c = await request.json();
+    const ano = parseInt(c.ano);
+    const diaVencimento = parseInt(c.diaVencimento) || 10;
+    const desconto = !!c.desconto;
+    if (!ano) return erro('Informe o ano.');
+
+    // pega todas as atletas que já têm um valor de mensalidade definido
+    const { results: atletas } = await env.DB.prepare(
+      `SELECT id, valor_mensalidade FROM atletas WHERE valor_mensalidade IS NOT NULL AND valor_mensalidade > 0`
+    ).all();
+    if (atletas.length === 0) return erro('Nenhuma atleta tem valor de mensalidade definido ainda. Preencha em "Valores de Mensalidade" antes de lançar em massa.');
+
+    // já existentes, pra não duplicar
+    const { results: existentes } = await env.DB.prepare(
+      `SELECT atleta_id, mes_referencia FROM mensalidades WHERE mes_referencia LIKE ?`
+    ).bind(ano + '-%').all();
+    const jaLancados = new Set(existentes.map(e => e.atleta_id + '|' + e.mes_referencia));
+
+    let criadas = 0, ignoradas = 0;
+    for (const a of atletas) {
+      const valorBase = a.valor_mensalidade;
+      const valorFinal = desconto ? Math.round(valorBase * 0.9 * 100) / 100 : valorBase;
+      for (let mes = 1; mes <= 12; mes++) {
+        const mesReferencia = ano + '-' + String(mes).padStart(2, '0');
+        if (jaLancados.has(a.id + '|' + mesReferencia)) { ignoradas++; continue; }
+        const vencimento = mesReferencia + '-' + String(diaVencimento).padStart(2, '0');
+        const novoId = gerarId('mn');
+        await env.DB.prepare(
+          `INSERT INTO mensalidades (id, atleta_id, mes_referencia, valor, vencimento, data_pagamento, valor_pago, observacao, desconto_aplicado) VALUES (?,?,?,?,?,NULL,NULL,NULL,?)`
+        ).bind(novoId, a.id, mesReferencia, valorFinal, vencimento, desconto ? 1 : 0).run();
+        criadas++;
+      }
+    }
+    return json({ criadas, ignoradas });
+  }
   if (metodo === 'POST' && !id) {
     const c = await request.json();
     if (!c.atletaId || !c.mesReferencia || !c.valor || !c.vencimento) return erro('Preencha atleta, mês, valor e vencimento.');
+    const valorFinal = c.desconto ? Math.round(c.valor * 0.9 * 100) / 100 : c.valor;
     const novoId = gerarId('mn');
     await env.DB.prepare(
-      `INSERT INTO mensalidades (id, atleta_id, mes_referencia, valor, vencimento, data_pagamento, valor_pago, observacao) VALUES (?,?,?,?,?,NULL,NULL,?)`
-    ).bind(novoId, c.atletaId, c.mesReferencia, c.valor, c.vencimento, c.observacao || null).run();
+      `INSERT INTO mensalidades (id, atleta_id, mes_referencia, valor, vencimento, data_pagamento, valor_pago, observacao, desconto_aplicado) VALUES (?,?,?,?,?,NULL,NULL,?,?)`
+    ).bind(novoId, c.atletaId, c.mesReferencia, valorFinal, c.vencimento, c.observacao || null, c.desconto ? 1 : 0).run();
     return json({ id: novoId });
   }
   if (metodo === 'PUT' && id) {
@@ -493,6 +531,30 @@ async function tratarMensalidades(request, env, usuario, rota, metodo) {
   }
   if (metodo === 'DELETE' && id) {
     await env.DB.prepare(`DELETE FROM mensalidades WHERE id=?`).bind(id).run();
+    return json({ ok: true });
+  }
+  return erro('Rota inválida.', 404);
+}
+
+// ---------------------------------------------------------------------------
+// VALORES DE MENSALIDADE — cadastro: nome, responsável, setor + valor em branco
+// para o financeiro preencher individualmente (usado no lançamento em massa)
+// ---------------------------------------------------------------------------
+async function tratarValoresMensalidade(request, env, usuario, rota, metodo) {
+  const bloqueado = exigirFinanceiro(usuario);
+  if (bloqueado) return bloqueado;
+  const atletaId = rota[1];
+
+  if (metodo === 'GET' && !atletaId) {
+    const { results } = await env.DB.prepare(
+      `SELECT id, nome, responsavel, setor, valor_mensalidade FROM atletas ORDER BY nome`
+    ).all();
+    return json({ atletas: results });
+  }
+  if (metodo === 'PUT' && atletaId) {
+    const c = await request.json();
+    const valor = (c.valor === null || c.valor === '' || c.valor === undefined) ? null : parseFloat(c.valor);
+    await env.DB.prepare(`UPDATE atletas SET valor_mensalidade=? WHERE id=?`).bind(valor, atletaId).run();
     return json({ ok: true });
   }
   return erro('Rota inválida.', 404);
