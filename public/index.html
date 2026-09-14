@@ -582,19 +582,22 @@ function rotuloPapel(papel){
   if(papel==='financeiro') return 'Financeiro';
   return 'Usuário';
 }
-// admin e técnica operam o clube (atletas, documentos, pagamentos, calendário, avisos);
-// diretoria visualiza tudo isso mas não pode criar/editar/excluir nada, e não vê Usuários;
-// financeiro fica restrito ao próprio menu Financeiro (não entra aqui);
+// admin, técnica, diretoria e financeiro operam/visualizam o clube (atletas, documentos, pagamentos);
+// financeiro tem as mesmas funções do admin (inclusive gestão de Usuários — ver ehAdminEquivalente);
 // "usuario" (responsável/família) só acompanha calendário e avisos já publicados.
 function ehEquipe(){
-  return usuarioLogado.papel !== 'usuario' && usuarioLogado.papel !== 'financeiro';
+  return usuarioLogado.papel !== 'usuario';
 }
-// controla quem pode criar, editar ou excluir dados (não inclui diretoria nem usuario)
+// controla quem pode criar, editar ou excluir dados (diretoria não entra aqui)
 function podeGerenciar(){
-  return usuarioLogado.papel === 'admin' || usuarioLogado.papel === 'tecnica';
+  return usuarioLogado.papel === 'admin' || usuarioLogado.papel === 'tecnica' || usuarioLogado.papel === 'financeiro';
 }
 // só admin e o papel "financeiro" enxergam e mexem no módulo financeiro
 function podeVerFinanceiro(){
+  return usuarioLogado.papel === 'admin' || usuarioLogado.papel === 'financeiro';
+}
+// financeiro tem as mesmas funções do admin, inclusive gestão de Usuários
+function ehAdminEquivalente(){
   return usuarioLogado.papel === 'admin' || usuarioLogado.papel === 'financeiro';
 }
 
@@ -766,7 +769,7 @@ function montarMenu(){
   const mobile = document.getElementById('menu-mobile');
   desktop.innerHTML=''; mobile.innerHTML='';
   ITENS_MENU.forEach(item=>{
-    if(item.somenteAdmin && usuarioLogado.papel!=='admin') return;
+    if(item.somenteAdmin && !ehAdminEquivalente()) return;
     if(item.somenteEquipe && !ehEquipe()) return;
     if(item.somenteFinanceiro && !podeVerFinanceiro()) return;
     const b1 = document.createElement('button');
@@ -833,7 +836,7 @@ async function renderInicio(){
       <div class="rotulo">Documentos guardados</div>
     </div>` : '';
 
-  const cartaoUsuarios = usuarioLogado.papel==='admin' ? `
+  const cartaoUsuarios = ehAdminEquivalente() ? `
     <div class="cartao-atalho" onclick="irPara('usuarios')">
       <div class="numero">${resumo.usuarios}</div>
       <div class="rotulo">Usuários do sistema</div>
@@ -1632,7 +1635,7 @@ async function renderFinanceiro(){
     <div class="cartao" style="padding:8px;margin-bottom:18px;">
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         ${[
-          ['dashboard','Dashboard'],['mensalidades','Mensalidades'],['inadimplentes','Inadimplentes'],
+          ['dashboard','Dashboard'],['mensalidades','Mensalidades'],['valores','Valores de Mensalidade'],['inadimplentes','Inadimplentes'],
           ['taxas','Taxas e Cobranças'],['despesas','Despesas'],['rateio','Rateio']
         ].map(([id,rotulo])=>`
           <button class="btn btn-sm ${financeiroAba===id?'btn-primario':'btn-secundario'}" onclick="financeiroTrocarAba('${id}')">${rotulo}</button>
@@ -1654,6 +1657,7 @@ function financeiroRenderizarAba(){
   const mapa = {
     dashboard: renderFinanceiroDashboard,
     mensalidades: renderFinanceiroMensalidades,
+    valores: renderFinanceiroValoresMensalidade,
     inadimplentes: renderFinanceiroInadimplentes,
     taxas: renderFinanceiroTaxas,
     despesas: renderFinanceiroDespesas,
@@ -1687,10 +1691,13 @@ async function renderFinanceiroDashboard(){
 }
 
 /* ---------- MENSALIDADES ---------- */
+let filtroMesMensalidades = 'todos';
 async function renderFinanceiroMensalidades(){
   const alvo = document.getElementById('financeiro-conteudo');
+  filtroMesMensalidades = 'todos';
   alvo.innerHTML = `
     <div class="cartao">
+      <h3 style="margin-top:0;">Lançar mensalidade individual</h3>
       <div class="linha-form">
         <div class="campo"><label>Atleta</label>
           <select id="mn-atleta"><option value="">Selecione...</option>${financeiroAtletasCache.map(a=>`<option value="${a.id}">${a.nome}</option>`).join('')}</select>
@@ -1699,26 +1706,61 @@ async function renderFinanceiroMensalidades(){
         <div class="campo"><label>Valor</label><input type="number" step="0.01" id="mn-valor" placeholder="Ex: 185.62"></div>
         <div class="campo"><label>Vencimento</label><input type="date" id="mn-vencimento"></div>
       </div>
+      <div class="campo" style="max-width:320px;">
+        <label><input type="checkbox" id="mn-desconto" style="width:auto;display:inline-block;margin-right:6px;">Aplicar 10% de desconto</label>
+      </div>
       <div class="barra-acoes"><button class="btn btn-primario" onclick="lancarMensalidade()">Lançar mensalidade</button></div>
     </div>
-    <div class="cartao"><div class="tabela-wrap" id="tabela-mensalidades">Carregando...</div></div>
+
+    <div class="cartao">
+      <h3 style="margin-top:0;">Lançamento em massa (ano inteiro)</h3>
+      <p style="color:var(--texto-suave);margin-top:0;">Gera as 12 parcelas do ano para todas as atletas que já têm valor de mensalidade definido em "Valores de Mensalidade". Parcelas já existentes não são duplicadas.</p>
+      <div class="linha-form">
+        <div class="campo"><label>Ano</label><input type="number" id="mn-massa-ano" value="${new Date().getFullYear()}"></div>
+        <div class="campo"><label>Dia do vencimento</label><input type="number" id="mn-massa-dia" value="10" min="1" max="28"></div>
+        <div class="campo"><label><input type="checkbox" id="mn-massa-desconto" style="width:auto;display:inline-block;margin-right:6px;">Aplicar 10% de desconto</label></div>
+      </div>
+      <div class="barra-acoes"><button class="btn btn-primario" onclick="lancarMensalidadesEmMassa()">Gerar mensalidades do ano</button></div>
+    </div>
+
+    <div class="cartao">
+      <div class="campo" style="max-width:220px;margin-bottom:14px;">
+        <label>Filtrar por mês</label>
+        <select id="mn-filtro-mes" onchange="filtrarMensalidadesPorMes()"><option value="todos">Todos os meses</option></select>
+      </div>
+      <div class="tabela-wrap" id="tabela-mensalidades">Carregando...</div>
+    </div>
   `;
   try{ mensalidadesCache = (await api('mensalidades')).mensalidades; }catch(e){ mensalidadesCache = []; }
+  montarFiltroMesMensalidades();
+  renderTabelaMensalidades();
+}
+function montarFiltroMesMensalidades(){
+  const select = document.getElementById('mn-filtro-mes');
+  if(!select) return;
+  const meses = [...new Set(mensalidadesCache.map(m=>m.mes_referencia))].sort().reverse();
+  select.innerHTML = `<option value="todos">Todos os meses</option>` +
+    meses.map(m=>`<option value="${m}">${formatarMesReferencia(m)}</option>`).join('');
+  select.value = filtroMesMensalidades;
+}
+function filtrarMensalidadesPorMes(){
+  filtroMesMensalidades = document.getElementById('mn-filtro-mes').value;
   renderTabelaMensalidades();
 }
 function renderTabelaMensalidades(){
   const alvo = document.getElementById('tabela-mensalidades');
-  if(mensalidadesCache.length===0){ alvo.innerHTML = `<div class="vazio">Nenhuma mensalidade lançada ainda.</div>`; return; }
+  const lista = filtroMesMensalidades==='todos' ? mensalidadesCache : mensalidadesCache.filter(m=>m.mes_referencia===filtroMesMensalidades);
+  if(lista.length===0){ alvo.innerHTML = `<div class="vazio">Nenhuma mensalidade encontrada.</div>`; return; }
   const cores = {pago:'#1c8a55', a_vencer:'#b8860b', inadimplente:'#c0392b'};
   alvo.innerHTML = `
     <table>
       <thead><tr><th>Atleta</th><th>Mês</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Pagamento</th><th></th></tr></thead>
       <tbody>
-        ${mensalidadesCache.map(m=>`
+        ${lista.map(m=>`
           <tr>
             <td>${m.atleta_nome||'—'}</td>
             <td>${formatarMesReferencia(m.mes_referencia)}</td>
-            <td>${formatarMoeda(m.valor)}</td>
+            <td>${formatarMoeda(m.valor)}${m.desconto_aplicado?' <span style="color:var(--laranja-forte);font-size:0.8em;">(-10%)</span>':''}</td>
             <td>${formatarData(m.vencimento)}</td>
             <td style="color:${cores[m.status]};font-weight:600;">${rotuloStatusMensalidade(m.status)}${m.status==='inadimplente'?` (${m.diasAtraso}d)`:''}</td>
             <td>${m.data_pagamento ? formatarData(m.data_pagamento) : '—'}</td>
@@ -1739,12 +1781,28 @@ async function lancarMensalidade(){
   const mes = document.getElementById('mn-mes').value;
   const valor = parseFloat(document.getElementById('mn-valor').value);
   const vencimento = document.getElementById('mn-vencimento').value;
+  const desconto = document.getElementById('mn-desconto').checked;
   if(!atletaId || !mes || !valor || !vencimento){ mostrarToast('Preencha atleta, mês, valor e vencimento.'); return; }
   try{
-    await api('mensalidades', {method:'POST', corpo:{atletaId, mesReferencia:mes, valor, vencimento}});
+    await api('mensalidades', {method:'POST', corpo:{atletaId, mesReferencia:mes, valor, vencimento, desconto}});
   }catch(e){ return; }
-  document.getElementById('mn-valor').value=''; document.getElementById('mn-vencimento').value='';
+  document.getElementById('mn-valor').value=''; document.getElementById('mn-vencimento').value=''; document.getElementById('mn-desconto').checked=false;
   mensalidadesCache = (await api('mensalidades')).mensalidades;
+  montarFiltroMesMensalidades();
+  renderTabelaMensalidades();
+}
+async function lancarMensalidadesEmMassa(){
+  const ano = parseInt(document.getElementById('mn-massa-ano').value);
+  const diaVencimento = parseInt(document.getElementById('mn-massa-dia').value) || 10;
+  const desconto = document.getElementById('mn-massa-desconto').checked;
+  if(!ano){ mostrarToast('Informe o ano.'); return; }
+  let resultado;
+  try{
+    resultado = await api('mensalidades/gerar-ano', {method:'POST', corpo:{ano, diaVencimento, desconto}});
+  }catch(e){ return; }
+  mostrarToast(`${resultado.criadas} parcela(s) geradas. ${resultado.ignoradas} já existiam.`);
+  mensalidadesCache = (await api('mensalidades')).mensalidades;
+  montarFiltroMesMensalidades();
   renderTabelaMensalidades();
 }
 async function marcarMensalidade(id, pago, valor){
@@ -1756,8 +1814,52 @@ async function marcarMensalidade(id, pago, valor){
 async function excluirMensalidade(id){
   try{ await api('mensalidades/'+id, {method:'DELETE'}); }catch(e){ return; }
   mensalidadesCache = (await api('mensalidades')).mensalidades;
+  montarFiltroMesMensalidades();
   renderTabelaMensalidades();
 }
+
+/* ---------- VALORES DE MENSALIDADE (cadastro por atleta) ---------- */
+let valoresMensalidadeCache = [];
+async function renderFinanceiroValoresMensalidade(){
+  const alvo = document.getElementById('financeiro-conteudo');
+  alvo.innerHTML = `
+    <div class="cartao">
+      <p style="color:var(--texto-suave);margin-top:0;">Defina o valor de mensalidade de cada atleta (fica em branco até você preencher). Esse valor é usado no lançamento em massa do ano.</p>
+      <div class="tabela-wrap" id="tabela-valores-mensalidade">Carregando...</div>
+    </div>
+  `;
+  try{ valoresMensalidadeCache = (await api('valores-mensalidade')).atletas; }catch(e){ valoresMensalidadeCache = []; }
+  renderTabelaValoresMensalidade();
+}
+function renderTabelaValoresMensalidade(){
+  const alvo = document.getElementById('tabela-valores-mensalidade');
+  if(valoresMensalidadeCache.length===0){ alvo.innerHTML = `<div class="vazio">Nenhuma atleta cadastrada ainda.</div>`; return; }
+  alvo.innerHTML = `
+    <table>
+      <thead><tr><th>Nome</th><th>Responsável</th><th>Setor</th><th>Mensalidade</th><th></th></tr></thead>
+      <tbody>
+        ${valoresMensalidadeCache.map(a=>`
+          <tr>
+            <td>${a.nome}</td>
+            <td>${a.responsavel||'—'}</td>
+            <td>${formatarSetor(a.setor)}</td>
+            <td><input type="number" step="0.01" id="vm-${a.id}" value="${a.valor_mensalidade!=null?a.valor_mensalidade:''}" placeholder="—" style="max-width:130px;"></td>
+            <td><button class="btn btn-sm btn-primario" onclick="salvarValorMensalidade('${a.id}')">Salvar</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+async function salvarValorMensalidade(atletaId){
+  const campo = document.getElementById('vm-'+atletaId);
+  const valor = campo.value === '' ? null : parseFloat(campo.value);
+  try{ await api('valores-mensalidade/'+atletaId, {method:'PUT', corpo:{valor}}); }catch(e){ return; }
+  mostrarToast('Valor de mensalidade atualizado.');
+  const item = valoresMensalidadeCache.find(a=>a.id===atletaId);
+  if(item) item.valor_mensalidade = valor;
+}
+
 
 /* ---------- INADIMPLENTES ---------- */
 async function renderFinanceiroInadimplentes(){
@@ -1990,7 +2092,7 @@ function calcularRateio(){
    USUÁRIOS (somente admin)
    ================================================================ */
 async function renderUsuarios(){
-  if(usuarioLogado.papel!=='admin'){ irPara('inicio'); return; }
+  if(!ehAdminEquivalente()){ irPara('inicio'); return; }
   const c = document.getElementById('conteudo');
   c.innerHTML = `
     <div class="cabecalho-secao">
