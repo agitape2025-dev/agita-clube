@@ -1718,18 +1718,26 @@ async function renderFinanceiroMensalidades(){
       <div class="linha-form">
         <div class="campo"><label>Ano</label><input type="number" id="mn-massa-ano" value="${new Date().getFullYear()}"></div>
         <div class="campo"><label>Dia do vencimento</label><input type="number" id="mn-massa-dia" value="10" min="1" max="28"></div>
-        <div class="campo"><label><input type="checkbox" id="mn-massa-desconto" style="width:auto;display:inline-block;margin-right:6px;">Aplicar 10% de desconto</label></div>
       </div>
       <div class="barra-acoes"><button class="btn btn-primario" onclick="lancarMensalidadesEmMassa()">Gerar mensalidades do ano</button></div>
     </div>
 
     <div class="cartao">
-      <div class="campo" style="max-width:220px;margin-bottom:14px;">
-        <label>Filtrar por mês</label>
-        <select id="mn-filtro-mes" onchange="filtrarMensalidadesPorMes()"><option value="todos">Todos os meses</option></select>
+      <div class="linha-form" style="align-items:flex-end;">
+        <div class="campo" style="max-width:220px;">
+          <label>Filtrar por mês</label>
+          <select id="mn-filtro-mes" onchange="filtrarMensalidadesPorMes()"><option value="todos">Todos os meses</option></select>
+        </div>
+        <div class="campo" style="max-width:200px;">
+          <button class="btn btn-secundario" onclick="marcarTodasMensalidades()">Marcar todas</button>
+        </div>
+        <div class="campo" style="max-width:200px;">
+          <button class="btn btn-perigo" onclick="excluirMensalidadesSelecionadas()">Excluir selecionadas</button>
+        </div>
       </div>
       <div class="tabela-wrap" id="tabela-mensalidades">Carregando...</div>
     </div>
+
   `;
   try{ mensalidadesCache = (await api('mensalidades')).mensalidades; }catch(e){ mensalidadesCache = []; }
   montarFiltroMesMensalidades();
@@ -1754,10 +1762,11 @@ function renderTabelaMensalidades(){
   const cores = {pago:'#1c8a55', a_vencer:'#b8860b', inadimplente:'#c0392b'};
   alvo.innerHTML = `
     <table>
-      <thead><tr><th>Atleta</th><th>Mês</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Pagamento</th><th></th></tr></thead>
+      <thead><tr><th></th><th>Atleta</th><th>Mês</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Pagamento</th><th></th></tr></thead>
       <tbody>
         ${lista.map(m=>`
           <tr>
+            <td><input type="checkbox" class="mn-selecionar" data-id="${m.id}" style="width:auto;"></td>
             <td>${m.atleta_nome||'—'}</td>
             <td>${formatarMesReferencia(m.mes_referencia)}</td>
             <td>${formatarMoeda(m.valor)}${m.desconto_aplicado?' <span style="color:var(--laranja-forte);font-size:0.8em;">(-10%)</span>':''}</td>
@@ -1794,13 +1803,29 @@ async function lancarMensalidade(){
 async function lancarMensalidadesEmMassa(){
   const ano = parseInt(document.getElementById('mn-massa-ano').value);
   const diaVencimento = parseInt(document.getElementById('mn-massa-dia').value) || 10;
-  const desconto = document.getElementById('mn-massa-desconto').checked;
   if(!ano){ mostrarToast('Informe o ano.'); return; }
   let resultado;
   try{
-    resultado = await api('mensalidades/gerar-ano', {method:'POST', corpo:{ano, diaVencimento, desconto}});
+    resultado = await api('mensalidades/gerar-ano', {method:'POST', corpo:{ano, diaVencimento, desconto:false}});
   }catch(e){ return; }
   mostrarToast(`${resultado.criadas} parcela(s) geradas. ${resultado.ignoradas} já existiam.`);
+  mensalidadesCache = (await api('mensalidades')).mensalidades;
+  montarFiltroMesMensalidades();
+  renderTabelaMensalidades();
+}
+function marcarTodasMensalidades(){
+  const caixas = document.querySelectorAll('.mn-selecionar');
+  if(caixas.length===0) return;
+  const todasMarcadas = [...caixas].every(cx=>cx.checked);
+  caixas.forEach(cx=>{ cx.checked = !todasMarcadas; });
+}
+async function excluirMensalidadesSelecionadas(){
+  const ids = [...document.querySelectorAll('.mn-selecionar:checked')].map(cx=>cx.dataset.id);
+  if(ids.length===0){ mostrarToast('Marque ao menos uma mensalidade para excluir.'); return; }
+  for(const id of ids){
+    try{ await api('mensalidades/'+id, {method:'DELETE'}); }catch(e){ /* segue para as próximas */ }
+  }
+  mostrarToast(`${ids.length} mensalidade(s) excluída(s).`);
   mensalidadesCache = (await api('mensalidades')).mensalidades;
   montarFiltroMesMensalidades();
   renderTabelaMensalidades();
