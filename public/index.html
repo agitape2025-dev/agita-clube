@@ -427,6 +427,17 @@
 .cartao-push .acoes{display:flex;gap:8px;flex-wrap:wrap}
 .cartao-push .acoes .btn{width:auto}
 
+
+/* ===== Aniversariantes ===== */
+.cartao-aniversario h3{margin:0 0 4px;font-family:'Baloo 2','Nunito',sans-serif;color:var(--azul-escuro)}
+.cartao-aniversario p{margin:0 0 14px;color:var(--texto-suave);font-size:.92rem}
+.aniv-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:6px}
+.aniv-item{background:#FFF9F1;border:2px solid #FFE2BF;border-radius:16px;overflow:hidden;padding-bottom:12px}
+.aniv-item img{width:100%;display:block}
+.aniv-info{padding:10px 14px 6px;color:var(--azul-escuro)}
+.aniv-item .barra-acoes{padding:0 14px}
+.selo-publicado{display:inline-block;background:#E3F6EC;color:#1A7A47;font-weight:800;font-size:.85rem;padding:6px 12px;border-radius:999px}
+
 /* ===== Visual ginástica + Ginger ===== */
 
   /* =====================================================================
@@ -1641,6 +1652,266 @@ renderInicio = async function(){
   }
 };
 
+
+/* ================================================================
+   ANIVERSARIANTES DO DIA — cartão automático
+   ================================================================ */
+const cartoesAniv = {};
+let gingerImgPromise = null;
+function carregarGingerImg(){
+  if(gingerImgPromise) return gingerImgPromise;
+  gingerImgPromise = new Promise(function(res){
+    try{
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--ginger').trim();
+      const u = v.slice(v.indexOf('"')+1, v.lastIndexOf('"'));
+      if(!u){ res(null); return; }
+      const im = new Image();
+      im.onload = function(){ res(im); };
+      im.onerror = function(){ res(null); };
+      im.src = u;
+    }catch(e){ res(null); }
+  });
+  return gingerImgPromise;
+}
+function carregarImagem(src){
+  return new Promise(function(res){
+    if(!src){ res(null); return; }
+    const im = new Image();
+    im.onload = function(){ res(im); };
+    im.onerror = function(){ res(null); };
+    im.src = src;
+  });
+}
+function aniversariantesDe(ref){
+  const h = ref || new Date();
+  const md = String(h.getMonth()+1).padStart(2,'0') + '-' + String(h.getDate()).padStart(2,'0');
+  return (atletasCache || []).filter(function(a){ return a.nascimento && String(a.nascimento).slice(5,10) === md; });
+}
+function tituloCartaoAniv(a){ return 'Feliz aniversário, ' + a.nome + '!'; }
+function mesmoDiaLocal(iso){
+  const d = new Date(iso), h = new Date();
+  return d.getFullYear()===h.getFullYear() && d.getMonth()===h.getMonth() && d.getDate()===h.getDate();
+}
+function cartaoJaPublicado(a){
+  return (avisosCache || []).some(function(av){ return av.tipo==='aniversario' && av.titulo===tituloCartaoAniv(a) && mesmoDiaLocal(av.criado_em); });
+}
+function quebrarTexto(ctx, txt, maxW){
+  const palavras = txt.split(' ');
+  const linhas = []; let atual = '';
+  palavras.forEach(function(p){
+    const t = atual ? atual+' '+p : p;
+    if(ctx.measureText(t).width <= maxW || !atual){ atual = t; } else { linhas.push(atual); atual = p; }
+  });
+  if(atual) linhas.push(atual);
+  return linhas;
+}
+function estrela(ctx, x, y, r, cor){
+  ctx.save(); ctx.translate(x, y); ctx.fillStyle = cor;
+  ctx.beginPath();
+  for(let i=0;i<8;i++){
+    const ang = i*Math.PI/4, rr = (i%2===0) ? r : r*0.28;
+    ctx.lineTo(Math.cos(ang)*rr, Math.sin(ang)*rr);
+  }
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+async function gerarCartaoAniversario(a){
+  const W = 1200, H = 675;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  try{ await document.fonts.load("800 70px 'Baloo 2'"); await document.fonts.load("700 40px 'Nunito'"); }catch(e){}
+  const ginger = await carregarGingerImg();
+  const foto = await carregarImagem(a.foto);
+  // gerador pseudo-aleatório estável por atleta
+  let seed = 0; for(let i=0;i<a.id.length;i++) seed = (seed*31 + a.id.charCodeAt(i)) >>> 0;
+  const rnd = function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed>>>15, 1|seed); t = t + Math.imul(t ^ t>>>7, 61|t) ^ t; return ((t ^ t>>>14) >>> 0) / 4294967296; };
+
+  // fundo
+  const g = ctx.createLinearGradient(0,0,W,H);
+  g.addColorStop(0,'#132A52'); g.addColorStop(0.5,'#1E4C8C'); g.addColorStop(1,'#F2892B');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  ctx.save(); ctx.globalAlpha = 0.10; ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(W*0.84, H*0.2, 230, 0, Math.PI*2); ctx.fill(); ctx.restore();
+
+  // fitas de ginástica
+  function fita(pts, cor, larg){
+    ctx.save(); ctx.strokeStyle = cor; ctx.lineWidth = larg; ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+    ctx.beginPath(); ctx.moveTo(pts[0], pts[1]);
+    ctx.bezierCurveTo(pts[2],pts[3],pts[4],pts[5],pts[6],pts[7]);
+    ctx.bezierCurveTo(pts[8],pts[9],pts[10],pts[11],pts[12],pts[13]);
+    ctx.stroke(); ctx.restore();
+  }
+  fita([-20,560, 120,420, 260,700, 380,520, 520,360, 640,640], '#FFC27A', 16);
+  fita([-20,590, 130,460, 260,730, 390,560, 520,410, 650,680], '#F2892B', 7);
+  fita([560,40, 700,150, 800,-30, 930,90, 1040,200, 1120,40], '#FF7BAC', 14);
+  fita([560,62, 700,170, 800,-8, 930,112, 1040,222, 1120,62], '#FFD166', 6);
+
+  // arcos (bambolês)
+  function arco(x, y, r, c1, c2){
+    const gg = ctx.createLinearGradient(x-r,y-r,x+r,y+r);
+    gg.addColorStop(0,c1); gg.addColorStop(1,c2);
+    ctx.save(); ctx.strokeStyle = gg; ctx.lineWidth = 16;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 3; ctx.setLineDash([8,16]);
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke(); ctx.restore();
+  }
+  arco(1090, 560, 80, '#F2892B', '#FFC27A');
+  arco(70, 70, 52, '#4CC9B0', '#FFD166');
+
+  // bola
+  const bx = 960, by = 600, br = 38;
+  const bg = ctx.createRadialGradient(bx-12, by-14, 4, bx, by, br);
+  bg.addColorStop(0,'#FFD9A8'); bg.addColorStop(1,'#E06A16');
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(bx,by,br,0,Math.PI*2); ctx.fill();
+
+  // confete
+  const cores = ['#F2892B','#FFC27A','#FF7BAC','#FFD166','#4CC9B0','#ffffff','#3E6BB0'];
+  for(let i=0;i<90;i++){
+    const x = rnd()*W, y = rnd()*H, w = 8+rnd()*12, h = (rnd()<.5) ? w : w*2.2;
+    ctx.save(); ctx.translate(x,y); ctx.rotate(rnd()*Math.PI);
+    ctx.globalAlpha = 0.85; ctx.fillStyle = cores[i%cores.length];
+    ctx.fillRect(-w/2,-h/2,w,h); ctx.restore();
+  }
+  for(let i=0;i<14;i++) estrela(ctx, rnd()*W, rnd()*H, 8+rnd()*12, 'rgba(255,255,255,.85)');
+
+  // foto (ou inicial) em moldura redonda
+  const cx = 205, cy = 345, r = 130;
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 8;
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx,cy,r+14,0,Math.PI*2); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.strokeStyle = '#F2892B'; ctx.lineWidth = 8;
+  ctx.beginPath(); ctx.arc(cx,cy,r+22,0,Math.PI*2); ctx.stroke(); ctx.restore();
+  ctx.save(); ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.clip();
+  if(foto){
+    const s = Math.max(2*r/foto.width, 2*r/foto.height);
+    ctx.drawImage(foto, cx - foto.width*s/2, cy - foto.height*s/2, foto.width*s, foto.height*s);
+  } else {
+    const fg = ctx.createLinearGradient(cx-r,cy-r,cx+r,cy+r);
+    fg.addColorStop(0,'#FFC27A'); fg.addColorStop(1,'#F2892B');
+    ctx.fillStyle = fg; ctx.fillRect(cx-r,cy-r,2*r,2*r);
+    ctx.fillStyle = '#fff'; ctx.font = "800 150px 'Baloo 2', sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText((a.nome||'?').trim().charAt(0).toUpperCase(), cx, cy+8);
+  }
+  ctx.restore();
+
+  // textos
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = "800 30px 'Baloo 2', sans-serif";
+  ctx.fillText('AGITA', 46, 60);
+  const tx = 392;
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+  ctx.fillStyle = '#FFD166'; ctx.font = "800 44px 'Baloo 2', sans-serif"; ctx.fillText('🎂 PARABÉNS!', tx, 215);
+  ctx.fillStyle = '#fff'; ctx.font = "800 72px 'Baloo 2', sans-serif";
+  ctx.fillText('FELIZ', tx, 292); ctx.fillText('ANIVERSÁRIO!', tx, 366);
+  ctx.restore();
+  // nome (ajusta e quebra em até 2 linhas)
+  let tam = 46; let linhas = [];
+  for(;;){
+    ctx.font = "700 " + tam + "px 'Baloo 2', sans-serif";
+    linhas = quebrarTexto(ctx, a.nome || '', 480);
+    if((linhas.length <= 2 && Math.max.apply(null, linhas.map(function(l){ return ctx.measureText(l).width; })) <= 480) || tam <= 30) break;
+    tam -= 3;
+  }
+  ctx.fillStyle = '#fff';
+  linhas.slice(0,2).forEach(function(l, i){ ctx.fillText(l, tx, 424 + i*(tam+6)); });
+  ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.font = "600 26px 'Nunito', sans-serif";
+  ctx.fillText('Toda a família AGITA deseja muita alegria! 🎉', tx, 424 + Math.min(linhas.length,2)*(tam+6) + 28);
+
+  // Ginger
+  if(ginger){
+    const gh = 500, gw = ginger.width*gh/ginger.height;
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 8;
+    ctx.drawImage(ginger, W - gw - 20, H - gh - 6, gw, gh); ctx.restore();
+  }
+  return cv.toDataURL('image/png');
+}
+
+async function renderAniversariantesHoje(){
+  const alvo = document.getElementById('aniversarios-hoje');
+  if(!alvo) return;
+  const lista = aniversariantesDe();
+  if(lista.length === 0){ alvo.innerHTML = ''; return; }
+  alvo.innerHTML = `
+    <div class="cartao cartao-aniversario">
+      <h3>🎂 Aniversariantes de hoje</h3>
+      <p>O cartão de parabéns já está pronto. Ao publicar, ele vai para o mural e todos recebem a notificação.</p>
+      <div class="aniv-grade" id="aniv-grade">Preparando cartões...</div>
+      ${lista.length > 1 ? `<div class="barra-acoes"><button type="button" class="btn btn-primario" onclick="publicarTodosAniversarios()">Publicar todos os cartões</button></div>` : ''}
+    </div>`;
+  const grade = document.getElementById('aniv-grade');
+  let html = '';
+  for(const a of lista){
+    if(!cartoesAniv[a.id]) cartoesAniv[a.id] = await gerarCartaoAniversario(a);
+    const feito = cartaoJaPublicado(a);
+    html += `
+      <div class="aniv-item">
+        <img src="${cartoesAniv[a.id]}" alt="${escaparTexto(tituloCartaoAniv(a))}">
+        <div class="aniv-info"><strong>${escaparTexto(a.nome)}</strong></div>
+        <div class="barra-acoes" style="margin:0;">
+          ${feito ? '<span class="selo-publicado">Publicado hoje ✔</span>' : `<button type="button" class="btn btn-primario btn-sm" onclick="publicarCartaoAniversario('${a.id}')">Publicar no mural</button>`}
+          <button type="button" class="btn btn-secundario btn-sm" onclick="baixarCartaoAniversario('${a.id}')">Baixar</button>
+        </div>
+      </div>`;
+  }
+  grade.innerHTML = html;
+}
+async function publicarUmCartaoAniv(id){
+  const a = atletasCache.find(function(x){ return x.id===id; });
+  if(!a || !cartoesAniv[id]) return false;
+  try{
+    await api('avisos', {method:'POST', corpo:{tipo:'aniversario', titulo:tituloCartaoAniv(a), imagem:cartoesAniv[id]}});
+    return true;
+  }catch(e){ return false; }
+}
+async function publicarCartaoAniversario(id){
+  if(!(await publicarUmCartaoAniv(id))) return;
+  mostrarToast('Cartão de aniversário publicado no mural.');
+  try{ const d = await api('avisos'); avisosCache = d.avisos; }catch(e){}
+  await renderGaleriaAvisos();
+  renderAniversariantesHoje();
+  enviarPushAviso();
+}
+async function publicarTodosAniversarios(){
+  let n = 0;
+  for(const a of aniversariantesDe()){
+    if(cartaoJaPublicado(a)) continue;
+    if(await publicarUmCartaoAniv(a.id)) n++;
+  }
+  if(n === 0) return;
+  mostrarToast(n + ' cartão(ões) de aniversário publicado(s) no mural.');
+  try{ const d = await api('avisos'); avisosCache = d.avisos; }catch(e){}
+  await renderGaleriaAvisos();
+  renderAniversariantesHoje();
+  enviarPushAviso();
+}
+function baixarCartaoAniversario(id){
+  const img = cartoesAniv[id]; if(!img) return;
+  const a = document.createElement('a');
+  a.href = img; a.download = 'agita-aniversario.png';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* aviso no Início para quem gerencia */
+async function mostrarAniversariosInicio(){
+  try{ if(!atletasCache || atletasCache.length === 0){ const d = await api('atletas'); atletasCache = d.atletas; } }catch(e){ return; }
+  const lista = aniversariantesDe();
+  if(lista.length === 0) return;
+  const c = document.getElementById('conteudo');
+  if(!c || secaoAtual !== 'inicio' || document.getElementById('aviso-aniv-inicio')) return;
+  const nomes = lista.map(function(a){ return escaparTexto(a.nome); }).join(', ');
+  const d = document.createElement('div');
+  d.id = 'aviso-aniv-inicio'; d.className = 'cartao-push';
+  d.innerHTML = `
+    <div class="txt"><strong>🎂 Hoje é dia de festa!</strong>Aniversário de ${nomes}. O cartão de parabéns já está pronto para publicar.</div>
+    <div class="acoes"><button type="button" class="btn btn-primario" onclick="irPara('avisos')">Ver cartão e publicar</button></div>`;
+  c.insertBefore(d, c.children[1] || null);
+  if(window.confeteBurst) setTimeout(function(){ window.confeteBurst(window.innerWidth/2, 120, 40, 'radial'); }, 500);
+}
+const __renderInicioAniv = renderInicio;
+renderInicio = async function(){
+  await __renderInicioAniv();
+  if(typeof usuarioLogado !== 'undefined' && usuarioLogado && podeGerenciar()) mostrarAniversariosInicio();
+};
+
 function irPara(secao){
   secaoAtual = secao;
   document.querySelectorAll('#menu-desktop button, #menu-mobile button').forEach(b=>{
@@ -2256,6 +2527,7 @@ async function renderAvisos(){
     <div class="cabecalho-secao">
       <div><h2>Gerador de avisos</h2><p>Crie banners padronizados para avisar sobre aulas, feriados e aniversariantes.</p></div>
     </div>
+    <div id="aniversarios-hoje"></div>
     <div id="cartao-push"></div>
     <div class="grade-aviso">
       <div class="cartao">
@@ -2285,6 +2557,7 @@ async function renderAvisos(){
   desenharAviso();
   await renderGaleriaAvisos();
   atualizarCartaoPush();
+  renderAniversariantesHoje();
 }
 async function renderGaleriaAvisos(){
   const ehAdmin = podeGerenciar();
