@@ -111,6 +111,7 @@ export async function onRequest(context) {
     if (rota[0] === 'usuarios') return await tratarUsuarios(request, env, usuario, rota, metodo);
     if (rota[0] === 'mensalidades') return await tratarMensalidades(request, env, usuario, rota, metodo);
     if (rota[0] === 'valores-mensalidade') return await tratarValoresMensalidade(request, env, usuario, rota, metodo);
+    if (rota[0] === 'chamada') return await tratarChamada(request, env, usuario, rota, metodo);
     if (rota[0] === 'taxas') return await tratarTaxas(request, env, usuario, rota, metodo);
     if (rota[0] === 'despesas') return await tratarDespesas(request, env, usuario, rota, metodo);
     if (rota[0] === 'financeiro-resumo' && metodo === 'GET') return await tratarFinanceiroResumo(env, usuario);
@@ -586,6 +587,82 @@ async function tratarValoresMensalidade(request, env, usuario, rota, metodo) {
       await env.DB.prepare(`UPDATE atletas SET valor_mensalidade=? WHERE id=?`).bind(valor, atletaId).run();
     }
     return json({ ok: true });
+  }
+  return erro('Rota inválida.', 404);
+}
+
+let tabelaChamadasGarantida = false;
+async function garantirTabelaChamadas(env) {
+  if (tabelaChamadasGarantida) return;
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS chamadas (
+    id TEXT PRIMARY KEY,
+    atleta_id TEXT NOT NULL,
+    data TEXT NOT NULL,
+    status TEXT NOT NULL,
+    registrado_por TEXT,
+    criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (atleta_id, data)
+  )`).run();
+  tabelaChamadasGarantida = true;
+}
+
+// Chamada: técnica, admin e financeiro registram; diretoria só consulta.
+async function tratarChamada(request, env, usuario, rota, metodo) {
+  if (usuario.papel === 'usuario') return erro('Sem acesso à chamada.', 403);
+  await garantirTabelaChamadas(env);
+  const url = new URL(request.url);
+  const dataOk = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
+
+  // GET /api/chamada?data=AAAA-MM-DD  -> atletas + faltas já registradas no dia
+  if (metodo === 'GET' && !rota[1]) {
+    const data = url.searchParams.get('data');
+    if (!dataOk(data)) return erro('Data inválida.', 400);
+    const { results: atletas } = await env.DB.prepare(
+      `SELECT id, nome, setor, categoria FROM atletas ORDER BY nome`
+    ).all();
+    const { results: regs } = await env.DB.prepare(
+      `SELECT atleta_id, status FROM chamadas WHERE data = ?`
+    ).bind(data).all();
+    const mapa = {};
+    regs.forEach(r => { mapa[r.atleta_id] = r.status; });
+    return json({ data, atletas: atletas.map(a => ({ ...a, status: mapa[a.id] || null })) });
+  }
+
+  // GET /api/chamada/relatorio?de=&ate=  -> frequência por atleta no período
+  if (metodo === 'GET' && rota[1] === 'relatorio') {
+    const de = url.searchParams.get('de');
+    const ate = url.searchParams.get('ate');
+    if (!dataOk(de) || !dataOk(ate)) return erro('Período inválido.', 400);
+    const { results } = await env.DB.prepare(
+      `SELECT a.id, a.nome, a.setor, a.categoria,
+              SUM(CASE WHEN c.status = 'P' THEN 1 ELSE 0 END) AS presencas,
+              SUM(CASE WHEN c.status = 'F' THEN 1 ELSE 0 END) AS faltas
+         FROM atletas a
+         LEFT JOIN chamadas c ON c.atleta_id = a.id AND c.data >= ? AND c.data <= ?
+        GROUP BY a.id ORDER BY a.nome`
+    ).bind(de, ate).all();
+    const { results: dias } = await env.DB.prepare(
+      `SELECT COUNT(DISTINCT data) AS n FROM chamadas WHERE data >= ? AND data <= ?`
+    ).bind(de, ate).all();
+    return json({ de, ate, aulas: dias[0]?.n || 0, atletas: results });
+  }
+
+  // PUT /api/chamada  { data, atletas:[ids exibidos], faltas:[ids ausentes] }
+  if (metodo === 'PUT' && !rota[1]) {
+    if (usuario.papel !== 'admin' && usuario.papel !== 'tecnica' && usuario.papel !== 'financeiro') {
+      return erro('Você só pode consultar a chamada.', 403);
+    }
+    const c = await request.json();
+    if (!dataOk(c.data) || !Array.isArray(c.atletas) || !Array.isArray(c.faltas)) return erro('Dados inválidos.', 400);
+    const faltas = new Set(c.faltas);
+    const stmts = c.atletas.map(id =>
+      env.DB.prepare(
+        `INSERT INTO chamadas (id, atleta_id, data, status, registrado_por) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(atleta_id, data) DO UPDATE SET status = excluded.status, registrado_por = excluded.registrado_por`
+      ).bind(crypto.randomUUID(), id, c.data, faltas.has(id) ? 'F' : 'P', usuario.nome || usuario.email || usuario.id || null)
+    );
+    for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
+    return json({ ok: true, registradas: stmts.length, faltas: c.atletas.filter(id => faltas.has(id)).length });
   }
   return erro('Rota inválida.', 404);
 }
