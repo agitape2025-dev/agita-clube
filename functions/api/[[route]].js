@@ -457,7 +457,21 @@ function diasAtraso(m, hojeISO) {
   return Math.round((new Date(hojeISO) - new Date(m.vencimento)) / umDia);
 }
 
+// Garante (uma vez por instância) a coluna de observação em atletas, usada em "Valores de Mensalidade"
+let colunaObsMensalidadeGarantida = false;
+async function garantirColunaObsMensalidade(env) {
+  if (colunaObsMensalidadeGarantida) return;
+  const { results } = await env.DB.prepare(`SELECT name FROM pragma_table_info('atletas')`).all();
+  if (!results.some(r => r.name === 'observacao_mensalidade')) {
+    try {
+      await env.DB.prepare(`ALTER TABLE atletas ADD COLUMN observacao_mensalidade TEXT`).run();
+    } catch (e) { /* outra requisição pode ter criado a coluna ao mesmo tempo */ }
+  }
+  colunaObsMensalidadeGarantida = true;
+}
+
 async function tratarMensalidades(request, env, usuario, rota, metodo) {
+  await garantirColunaObsMensalidade(env);
   const bloqueado = exigirFinanceiro(usuario);
   if (bloqueado) return bloqueado;
   const id = rota[1];
@@ -485,7 +499,7 @@ async function tratarMensalidades(request, env, usuario, rota, metodo) {
 
     // pega todas as atletas que já têm um valor de mensalidade definido
     const { results: atletas } = await env.DB.prepare(
-      `SELECT id, valor_mensalidade FROM atletas WHERE valor_mensalidade IS NOT NULL AND valor_mensalidade > 0`
+      `SELECT id, valor_mensalidade, observacao_mensalidade FROM atletas WHERE valor_mensalidade IS NOT NULL AND valor_mensalidade > 0`
     ).all();
     if (atletas.length === 0) return erro('Nenhuma atleta tem valor de mensalidade definido ainda. Preencha em "Valores de Mensalidade" antes de lançar em massa.');
 
@@ -505,8 +519,8 @@ async function tratarMensalidades(request, env, usuario, rota, metodo) {
         const vencimento = mesReferencia + '-' + String(diaVencimento).padStart(2, '0');
         const novoId = gerarId('mn');
         await env.DB.prepare(
-          `INSERT INTO mensalidades (id, atleta_id, mes_referencia, valor, vencimento, data_pagamento, valor_pago, observacao, desconto_aplicado) VALUES (?,?,?,?,?,NULL,NULL,NULL,?)`
-        ).bind(novoId, a.id, mesReferencia, valorFinal, vencimento, desconto ? 1 : 0).run();
+          `INSERT INTO mensalidades (id, atleta_id, mes_referencia, valor, vencimento, data_pagamento, valor_pago, observacao, desconto_aplicado) VALUES (?,?,?,?,?,NULL,NULL,?,?)`
+        ).bind(novoId, a.id, mesReferencia, valorFinal, vencimento, a.observacao_mensalidade || null, desconto ? 1 : 0).run();
         criadas++;
       }
     }
@@ -524,6 +538,16 @@ async function tratarMensalidades(request, env, usuario, rota, metodo) {
   }
   if (metodo === 'PUT' && id) {
     const c = await request.json();
+    // Edição dos dados da mensalidade (vencimento, valor, observação)
+    if (c.vencimento !== undefined) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(c.vencimento || '')) return erro('Informe um vencimento válido.');
+      const valorNovo = parseFloat(c.valor);
+      if (!(valorNovo > 0)) return erro('Informe um valor válido.');
+      await env.DB.prepare(
+        `UPDATE mensalidades SET vencimento=?, valor=?, observacao=? WHERE id=?`
+      ).bind(c.vencimento, valorNovo, (c.observacao || '').trim() || null, id).run();
+      return json({ ok: true });
+    }
     await env.DB.prepare(
       `UPDATE mensalidades SET data_pagamento=?, valor_pago=? WHERE id=?`
     ).bind(c.dataPagamento || null, c.valorPago || null, id).run();
@@ -541,20 +565,26 @@ async function tratarMensalidades(request, env, usuario, rota, metodo) {
 // para o financeiro preencher individualmente (usado no lançamento em massa)
 // ---------------------------------------------------------------------------
 async function tratarValoresMensalidade(request, env, usuario, rota, metodo) {
+  await garantirColunaObsMensalidade(env);
   const bloqueado = exigirFinanceiro(usuario);
   if (bloqueado) return bloqueado;
   const atletaId = rota[1];
 
   if (metodo === 'GET' && !atletaId) {
     const { results } = await env.DB.prepare(
-      `SELECT id, nome, responsavel, setor, valor_mensalidade FROM atletas ORDER BY nome`
+      `SELECT id, nome, responsavel, setor, valor_mensalidade, observacao_mensalidade FROM atletas ORDER BY nome`
     ).all();
     return json({ atletas: results });
   }
   if (metodo === 'PUT' && atletaId) {
     const c = await request.json();
     const valor = (c.valor === null || c.valor === '' || c.valor === undefined) ? null : parseFloat(c.valor);
-    await env.DB.prepare(`UPDATE atletas SET valor_mensalidade=? WHERE id=?`).bind(valor, atletaId).run();
+    if (c.observacao !== undefined) {
+      await env.DB.prepare(`UPDATE atletas SET valor_mensalidade=?, observacao_mensalidade=? WHERE id=?`)
+        .bind(valor, (c.observacao || '').trim() || null, atletaId).run();
+    } else {
+      await env.DB.prepare(`UPDATE atletas SET valor_mensalidade=? WHERE id=?`).bind(valor, atletaId).run();
+    }
     return json({ ok: true });
   }
   return erro('Rota inválida.', 404);
