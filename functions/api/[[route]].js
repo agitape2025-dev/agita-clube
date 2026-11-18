@@ -107,6 +107,7 @@ export async function onRequest(context) {
     if (rota[0] === 'documentos') return await tratarDocumentos(request, env, usuario, rota, metodo);
     if (rota[0] === 'pagamentos') return await tratarPagamentos(request, env, usuario, rota, metodo);
     if (rota[0] === 'eventos') return await tratarEventos(request, env, usuario, rota, metodo);
+    if (rota[0] === 'push') return await tratarPush(request, env, usuario, rota, metodo);
     if (rota[0] === 'avisos') return await tratarAvisos(request, env, usuario, rota, metodo);
     if (rota[0] === 'usuarios') return await tratarUsuarios(request, env, usuario, rota, metodo);
     if (rota[0] === 'mensalidades') return await tratarMensalidades(request, env, usuario, rota, metodo);
@@ -370,9 +371,108 @@ async function tratarEventos(request, env, usuario, rota, metodo) {
 // ---------------------------------------------------------------------------
 // AVISOS PUBLICADOS (visualização liberada a todos; publicar/excluir só admin)
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// NOTIFICAÇÕES PUSH (Web Push sem conteúdo: o aparelho busca o último aviso ao receber)
+// ---------------------------------------------------------------------------
+let tabelasPushGarantidas = false;
+async function garantirTabelasPush(env) {
+  if (tabelasPushGarantidas) return;
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS push_inscricoes (
+    id TEXT PRIMARY KEY, usuario_id TEXT, endpoint TEXT NOT NULL UNIQUE, criado_em TEXT
+  )`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS configuracoes (chave TEXT PRIMARY KEY, valor TEXT)`).run();
+  tabelasPushGarantidas = true;
+}
+function b64u(buf) {
+  let s = '';
+  new Uint8Array(buf).forEach(b => { s += String.fromCharCode(b); });
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+// As chaves VAPID são geradas uma única vez pelo próprio servidor e guardadas no D1.
+async function obterChavesVapid(env) {
+  await garantirTabelasPush(env);
+  let row = await env.DB.prepare(`SELECT valor FROM configuracoes WHERE chave='vapid'`).first();
+  if (!row) {
+    const par = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const privada = await crypto.subtle.exportKey('jwk', par.privateKey);
+    const publica = b64u(await crypto.subtle.exportKey('raw', par.publicKey));
+    await env.DB.prepare(`INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('vapid', ?)`)
+      .bind(JSON.stringify({ publica, privada })).run();
+    row = await env.DB.prepare(`SELECT valor FROM configuracoes WHERE chave='vapid'`).first();
+  }
+  return JSON.parse(row.valor);
+}
+async function jwtVapid(endpoint, chaves) {
+  const enc = (o) => b64u(new TextEncoder().encode(JSON.stringify(o)));
+  const cab = enc({ typ: 'JWT', alg: 'ES256' });
+  const corpo = enc({ aud: new URL(endpoint).origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: 'https://agita-clube.pages.dev' });
+  const chave = await crypto.subtle.importKey('jwk', chaves.privada, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, chave, new TextEncoder().encode(cab + '.' + corpo));
+  return cab + '.' + corpo + '.' + b64u(sig);
+}
+
+async function tratarPush(request, env, usuario, rota, metodo) {
+  await garantirTabelasPush(env);
+  const acao = rota[1];
+
+  if (metodo === 'GET' && acao === 'chave') {
+    const chaves = await obterChavesVapid(env);
+    return json({ chave: chaves.publica });
+  }
+  if (metodo === 'POST' && acao === 'inscrever') {
+    const c = await request.json();
+    if (!c.endpoint || !/^https:\/\//.test(c.endpoint)) return erro('Inscrição inválida.', 400);
+    await env.DB.prepare(
+      `INSERT INTO push_inscricoes (id, usuario_id, endpoint, criado_em) VALUES (?,?,?,?)
+       ON CONFLICT(endpoint) DO UPDATE SET usuario_id = excluded.usuario_id`
+    ).bind(gerarId('ps'), usuario.id || null, c.endpoint, new Date().toISOString()).run();
+    return json({ ok: true });
+  }
+  if (metodo === 'POST' && acao === 'cancelar') {
+    const c = await request.json();
+    if (c.endpoint) await env.DB.prepare(`DELETE FROM push_inscricoes WHERE endpoint=?`).bind(c.endpoint).run();
+    return json({ ok: true });
+  }
+  // Envio em lotes de 40 (limite de subrequisições por chamada): o painel repete até acabar.
+  if (metodo === 'POST' && acao === 'enviar') {
+    const bloqueado = exigirGerenciar(usuario);
+    if (bloqueado) return bloqueado;
+    const c = await request.json().catch(() => ({}));
+    const desloc = Math.max(0, parseInt(c.deslocamento, 10) || 0);
+    const LOTE = 40;
+    const chaves = await obterChavesVapid(env);
+    const { results: tot } = await env.DB.prepare(`SELECT COUNT(*) AS n FROM push_inscricoes`).all();
+    const total = tot[0]?.n || 0;
+    const { results } = await env.DB.prepare(`SELECT id, endpoint FROM push_inscricoes ORDER BY id LIMIT ? OFFSET ?`).bind(LOTE, desloc).all();
+    let enviadas = 0;
+    const remover = [];
+    await Promise.all(results.map(async (s) => {
+      try {
+        const jwt = await jwtVapid(s.endpoint, chaves);
+        const r = await fetch(s.endpoint, {
+          method: 'POST',
+          headers: { Authorization: 'vapid t=' + jwt + ', k=' + chaves.publica, TTL: '86400', Urgency: 'high' }
+        });
+        if (r.status === 404 || r.status === 410) remover.push(s.id);
+        else if (r.ok) enviadas++;
+      } catch (e) { /* ignora falhas individuais */ }
+    }));
+    for (const id of remover) await env.DB.prepare(`DELETE FROM push_inscricoes WHERE id=?`).bind(id).run();
+    const proximo = (desloc + LOTE < total) ? desloc + LOTE - remover.length : null;
+    return json({ total, enviadas, proximo });
+  }
+  return erro('Rota inválida.', 404);
+}
+
 async function tratarAvisos(request, env, usuario, rota, metodo) {
   const id = rota[1];
 
+  if (metodo === 'GET' && id === 'contagem') {
+    const desde = new Date(parseInt(new URL(request.url).searchParams.get('desde'), 10) || 0).toISOString();
+    const { results: n } = await env.DB.prepare(`SELECT COUNT(*) AS n FROM avisos_publicados WHERE criado_em > ?`).bind(desde).all();
+    const ultimo = await env.DB.prepare(`SELECT titulo, criado_em FROM avisos_publicados ORDER BY criado_em DESC LIMIT 1`).first();
+    return json({ novos: n[0]?.n || 0, ultimo: ultimo || null });
+  }
   if (metodo === 'GET' && !id) {
     const { results } = await env.DB.prepare(`SELECT * FROM avisos_publicados ORDER BY criado_em DESC`).all();
     return json({ avisos: results });
