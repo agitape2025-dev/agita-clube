@@ -1565,11 +1565,11 @@ async function atualizarCartaoPush(){
   alvo.innerHTML = html;
 }
 /* envia a notificação em lotes depois de publicar um aviso */
-async function enviarPushAviso(){
+async function enviarPushAviso(publico){
   let desloc = 0, enviadas = 0, total = 0;
   try{
     for(let i=0;i<30;i++){
-      const r = await api('push/enviar', {method:'POST', corpo:{deslocamento:desloc}});
+      const r = await api('push/enviar', {method:'POST', corpo:{deslocamento:desloc, publico:publico || 'todos'}});
       enviadas += r.enviadas || 0; total = r.total || 0;
       if(r.proximo === null || r.proximo === undefined) break;
       desloc = r.proximo;
@@ -1622,7 +1622,7 @@ function gingerVazia(el){
 function renderMuralPais(alvo){
   const hoje = hojeISO();
   const visto = lerVistoAvisos();
-  const doDia = avisosCache.filter(function(a){ return validadeAviso(a) <= hoje; });
+  const doDia = avisosCache.filter(function(a){ return validadeAviso(a) === hoje; });
   const futuros = avisosCache.filter(function(a){ return validadeAviso(a) > hoje; })
     .sort(function(a, b){ return validadeAviso(a) < validadeAviso(b) ? -1 : 1; });
   const novo = function(a){ return msAviso(a.criado_em) > visto; };
@@ -1998,6 +1998,9 @@ function rotuloValidadeAviso(av){
   return 'No ar para os pais até ' + formatarData(ate);
 }
 
+function rotuloPublico(p){
+  return {todos:'Todos', pais:'Só os pais (diretoria e adm também veem)', interno:'Interno (diretoria e técnicas)', diretoria:'Só diretoria'}[p || 'todos'] || 'Todos';
+}
 function irPara(secao){
   secaoAtual = secao;
   document.querySelectorAll('#menu-desktop button, #menu-mobile button').forEach(b=>{
@@ -2666,6 +2669,7 @@ async function renderGaleriaAvisos(){
           <div style="font-weight:600;color:var(--azul-escuro);">${av.titulo}</div>
           <div class="rotulo" style="margin-top:2px;">${formatarDataHora(av.criado_em)}</div>
           <div class="rotulo">${rotuloValidadeAviso(av)}</div>
+          <div class="rotulo">Público: ${rotuloPublico(av.publico)}</div>
           <div class="barra-acoes">
             <a class="btn btn-sm btn-secundario" href="${av.imagem}" download="agita-aviso.png">Baixar</a>
             ${ehAdmin ? `<button class="btn btn-sm btn-perigo" onclick="excluirAvisoPublicado('${av.id}')">Excluir</button>` : ''}
@@ -2699,10 +2703,12 @@ function renderCamposExtraAviso(){
     `;
   }
   const __dataPrev = document.getElementById('av-data')?.value || '';
+  const __pubPrev = document.getElementById('av-publico')?.value || 'todos';
   alvo.innerHTML = `
     <div class="campo"><label>Título do banner</label><input type="text" id="av-titulo" value="${t.titulo}" oninput="desenharAviso()"></div>
     <div class="campo"><label>Texto complementar</label><input type="text" id="av-sub" value="${t.sub}" oninput="desenharAviso()"></div>
     ${extra}
+    <div class="campo"><label>Público do aviso</label><select id="av-publico"><option value="todos" ${__pubPrev==='todos'?'selected':''}>Todos (pais, técnicas e diretoria)</option><option value="pais" ${__pubPrev==='pais'?'selected':''}>Só os pais (diretoria e adm também veem)</option><option value="interno" ${__pubPrev==='interno'?'selected':''}>Interno (diretoria e técnicas)</option><option value="diretoria" ${__pubPrev==='diretoria'?'selected':''}>Só diretoria</option></select><p class="dica-chamada">Administrador e financeiro veem todos os avisos. Só quem é do público escolhido recebe a notificação.</p></div>
     <div class="campo"><label>Aviso para a data (opcional)</label><input type="date" id="av-data" min="${hojeISO()}" value="${__dataPrev}" onchange="desenharAviso()"><p class="dica-chamada">Em branco: o aviso aparece para os pais só hoje. Com uma data (ex.: dia sem aula): aparece desde já até esse dia.</p></div>
   `;
 }
@@ -2916,12 +2922,13 @@ async function publicarAviso(){
       tipo: avisoTipoAtual,
       titulo,
       exibir_ate: document.getElementById('av-data')?.value || null,
+      publico: document.getElementById('av-publico')?.value || 'todos',
       imagem: canvas.toDataURL('image/jpeg', 0.9)
     }});
   }catch(e){ return; }
   await renderGaleriaAvisos();
   mostrarToast('Aviso publicado no mural.');
-  enviarPushAviso();
+  enviarPushAviso(document.getElementById('av-publico')?.value || 'todos');
 }
 async function excluirAvisoPublicado(id){
   try{ await api('avisos/'+id, {method:'DELETE'}); }catch(e){ return; }
