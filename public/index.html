@@ -365,7 +365,7 @@
 
 
 /* ===== Chamada ===== */
-.abas-chamada{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.abas-chamada{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}.abas-chamada .btn,.chips-setor .btn,.acoes-chamada .btn{width:auto;flex:0 0 auto;display:inline-flex}.abas-chamada .btn{flex:1 1 140px;justify-content:center}.abas-chamada .btn-primario,.chips-setor .btn-primario{background:linear-gradient(135deg,#F2892B,#FFB562);color:#fff}
 .linha-filtros-chamada{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
 .linha-filtros-chamada .campo{flex:1 1 180px;max-width:280px;margin-bottom:8px}
 .chips-setor{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
@@ -390,7 +390,7 @@
 .barra-freq-fill{position:absolute;inset:0 auto 0 0;border-radius:999px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
 .barra-freq-fill.alta{background:#52C48A}.barra-freq-fill.media{background:#F2B24B}.barra-freq-fill.baixa{background:#F0827A}
 .barra-freq span{position:relative;z-index:1;display:block;text-align:center;font-size:.78rem;font-weight:800;line-height:22px;color:#132A52}
-@media(max-width:560px){.linha-chamada{flex-wrap:wrap}.linha-chamada .nome-chamada{flex-basis:calc(100% - 40px)}}
+@media(max-width:560px){.linha-chamada{display:grid;grid-template-columns:26px 1fr auto;column-gap:12px;row-gap:4px;align-items:center}.linha-chamada input{grid-row:1/3}.linha-chamada .nome-chamada{grid-column:2;grid-row:1}.linha-chamada .selo-chamada{grid-column:3;grid-row:1}.linha-chamada .tag-setor-chamada{grid-column:2;grid-row:2;justify-self:start}}
 
 /* ===== Visual ginástica + Ginger ===== */
 
@@ -547,8 +547,8 @@
 
   /* login: Ginger espiando atrás do cartão */
   .ginger-login{
-    position:absolute;z-index:0;bottom:0;left:calc(50% + 120px);
-    height:min(64vh,430px);aspect-ratio:219/360;cursor:pointer;
+    position:absolute;z-index:0;bottom:0;left:calc(50% + 310px);
+    height:min(64vh,430px,calc((50vw - 310px)/.608));aspect-ratio:219/360;cursor:pointer;
     animation:gingerSobe 1.2s var(--ease-mola) .6s both;
   }
   .ginger-login .g-img{width:100%;height:100%;background:var(--ginger) no-repeat center bottom/contain;transform-origin:50% 100%;animation:gingerRespira 4.6s ease-in-out 1.9s infinite;filter:drop-shadow(0 14px 18px rgba(19,42,82,.22));}
@@ -556,11 +556,9 @@
   .ginger-login.fala .ginger-balao{transform:translateX(-50%);}
   .ginger-login .ginger-balao::after{left:calc(50% - 6px);}
   .pulo > .g-img,.pulo.g-img{animation:gingerPulo .85s var(--ease-mola) !important;}
-  @media (max-width:900px){
-    .ginger-login{left:auto;right:-14px;height:min(30vh,230px);}
-    .ginger-login .ginger-balao{left:auto;right:30px;transform:translateY(8px) scale(.9);transform-origin:bottom right;}
-    .ginger-login.fala .ginger-balao{transform:none;}
-    .ginger-login .ginger-balao::after{left:auto;right:22px;}
+  @media (max-width:1000px){
+    #tela-login{flex-direction:column;}
+    .ginger-login{position:relative;left:auto;right:auto;bottom:auto;align-self:center;height:min(24vh,200px);margin-top:62px;animation:none;}
   }
 
   /* rosto redondo (avatar do topo e telas vazias) */
