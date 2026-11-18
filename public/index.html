@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AGITA — Portal do Clube</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#132A52">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AGITA">
+<link rel="apple-touch-icon" href="/icone.png">
+<link rel="icon" type="image/png" href="/icone.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -391,6 +398,34 @@
 .barra-freq-fill.alta{background:#52C48A}.barra-freq-fill.media{background:#F2B24B}.barra-freq-fill.baixa{background:#F0827A}
 .barra-freq span{position:relative;z-index:1;display:block;text-align:center;font-size:.78rem;font-weight:800;line-height:22px;color:#132A52}
 @media(max-width:560px){.linha-chamada{display:grid;grid-template-columns:26px 1fr auto;column-gap:12px;row-gap:4px;align-items:center}.linha-chamada input{grid-row:1/3}.linha-chamada .nome-chamada{grid-column:2;grid-row:1}.linha-chamada .selo-chamada{grid-column:3;grid-row:1}.linha-chamada .tag-setor-chamada{grid-column:2;grid-row:2;justify-self:start}}
+
+
+/* ===== Mural de avisos + notificações ===== */
+.mural-destaque{background:#fff;border-radius:22px;overflow:hidden;box-shadow:var(--sombra);margin-bottom:24px;cursor:pointer;border:2px solid #FFE2BF;transition:transform .25s ease,box-shadow .25s ease}
+.mural-destaque:hover{transform:translateY(-3px);box-shadow:0 16px 36px rgba(19,42,82,.16)}
+.mural-destaque-topo{display:flex;align-items:center;gap:10px;padding:14px 18px;flex-wrap:wrap}
+.mural-etiqueta{font-family:'Baloo 2','Nunito',sans-serif;font-weight:800;color:var(--laranja-forte);text-transform:uppercase;letter-spacing:.06em;font-size:.8rem}
+.mural-data{margin-left:auto;color:var(--texto-suave);font-size:.85rem}
+.mural-destaque img{width:100%;display:block}
+.mural-destaque-rodape{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;color:var(--azul-escuro)}
+.mural-titulo{font-family:'Baloo 2','Nunito',sans-serif;color:var(--azul-escuro);margin:6px 0 14px}
+.mural-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+.mural-card{position:relative;background:#fff;border-radius:18px;overflow:hidden;box-shadow:var(--sombra);cursor:pointer;transition:transform .25s ease,box-shadow .25s ease}
+.mural-card:hover{transform:translateY(-4px) rotate(-.4deg);box-shadow:0 14px 30px rgba(19,42,82,.15)}
+.mural-card img{width:100%;display:block}
+.mural-card .info{padding:10px 14px 14px}
+.mural-card .t{font-weight:700;color:var(--azul-escuro)}
+.mural-card .d{font-size:.82rem;color:var(--texto-suave);margin-top:2px}
+.mural-card .selo-novo{position:absolute;top:10px;left:10px;z-index:1}
+.selo-novo{display:inline-block;background:linear-gradient(135deg,#F2892B,#FF7BAC);color:#fff;font-weight:800;font-size:.72rem;padding:3px 10px;border-radius:999px;animation:seloPulsa 1.6s ease-in-out infinite}
+@keyframes seloPulsa{50%{transform:scale(1.1)}}
+.bolinha-novo{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;border-radius:999px;background:#FF4D6D;color:#fff;font-size:.7rem;font-weight:800;vertical-align:middle}
+.cartao-push{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:linear-gradient(135deg,#FFF4E0,#FFE9D6);border:2px dashed #F2B66B;border-radius:18px;padding:16px 18px;margin-bottom:18px}
+.cartao-push.ok{background:#E8F6EE;border-color:#9AD5B1}
+.cartao-push .txt{flex:1 1 220px;color:var(--texto);font-size:.92rem}
+.cartao-push .txt strong{display:block;color:var(--azul-escuro);font-family:'Baloo 2','Nunito',sans-serif;font-size:1.05rem;margin-bottom:2px}
+.cartao-push .acoes{display:flex;gap:8px;flex-wrap:wrap}
+.cartao-push .acoes .btn{width:auto}
 
 /* ===== Visual ginástica + Ginger ===== */
 
@@ -1035,7 +1070,8 @@ function finalizarLogin(mostrarSaudacao){
   document.getElementById('form-troca-senha').style.display='none';
   document.getElementById('chip-usuario').textContent = usuarioLogado.nome + ' · ' + rotuloPapel(usuarioLogado.papel);
   montarMenu();
-  irPara('inicio');
+  irPara(secaoInicial());
+  atualizarBadgeAvisos();
   if(mostrarSaudacao) mostrarSaudacaoLogin();
 }
 async function sair(){
@@ -1375,6 +1411,235 @@ function imprimirFrequencia(){
     </tbody></table><script>window.onload=function(){window.print();}<\/script></body></html>`);
   w.document.close();
 }
+
+
+/* ================================================================
+   APP (PWA) + NOTIFICAÇÕES + MURAL DE AVISOS
+   ================================================================ */
+let promptInstalacao = null;
+window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); promptInstalacao = e; atualizarCartaoPush(); });
+window.addEventListener('appinstalled', function(){ promptInstalacao = null; atualizarCartaoPush(); });
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); });
+}
+function ehIOS(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+}
+function emModoApp(){
+  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone===true;
+}
+function pushSuportado(){
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+function b64uParaBytes(s){
+  s = s.replace(/-/g,'+').replace(/_/g,'/');
+  while(s.length % 4) s += '=';
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function secaoInicial(){
+  const s = new URLSearchParams(location.search).get('secao');
+  return s === 'avisos' ? 'avisos' : 'inicio';
+}
+async function estadoPush(){
+  if(ehIOS() && !emModoApp()) return 'ios-instalar';
+  if(!pushSuportado()) return 'sem-suporte';
+  if(Notification.permission==='denied') return 'bloqueado';
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if(sub && Notification.permission==='granted') return 'ativo';
+  }catch(e){}
+  return 'inativo';
+}
+async function ativarNotificacoes(){
+  try{
+    const perm = await Notification.requestPermission();
+    if(perm!=='granted'){
+      mostrarToast('Notificações não permitidas. Libere nas configurações do navegador.');
+      atualizarCartaoPush();
+      return;
+    }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub){
+      const r = await api('push/chave');
+      sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64uParaBytes(r.chave)});
+    }
+    await api('push/inscrever', {method:'POST', corpo:{endpoint:sub.endpoint}});
+    mostrarToast('Notificações ativadas com sucesso!');
+  }catch(e){
+    mostrarToast('Não foi possível ativar as notificações neste aparelho.');
+  }
+  atualizarCartaoPush();
+}
+async function desativarNotificacoes(){
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if(sub){
+      try{ await api('push/cancelar', {method:'POST', corpo:{endpoint:sub.endpoint}}); }catch(e){}
+      await sub.unsubscribe();
+    }
+    mostrarToast('Notificações desativadas neste aparelho.');
+  }catch(e){}
+  atualizarCartaoPush();
+}
+async function instalarApp(){
+  if(!promptInstalacao) return;
+  promptInstalacao.prompt();
+  try{ await promptInstalacao.userChoice; }catch(e){}
+  promptInstalacao = null;
+  atualizarCartaoPush();
+}
+async function atualizarCartaoPush(){
+  const alvo = document.getElementById('cartao-push');
+  if(!alvo) return;
+  const compacto = alvo.dataset.modo === 'inicio';
+  const st = await estadoPush();
+  const btnInstalar = (promptInstalacao && !emModoApp())
+    ? `<button type="button" class="btn btn-secundario" onclick="instalarApp()">📲 Instalar app</button>` : '';
+  let html = '';
+  if(st==='ativo'){
+    html = compacto ? '' : `
+      <div class="cartao-push ok">
+        <div class="txt"><strong>🔔 Notificações ativadas</strong>Você será avisada(o) aqui neste aparelho sempre que o AGITA publicar um aviso.</div>
+        <div class="acoes"><button type="button" class="btn btn-secundario btn-sm" onclick="desativarNotificacoes()">Desativar</button>${btnInstalar}</div>
+      </div>`;
+  } else if(st==='inativo'){
+    html = `
+      <div class="cartao-push">
+        <div class="txt"><strong>🔔 Receba os avisos no celular</strong>Ative as notificações e seja avisada(o) na hora quando o AGITA publicar um comunicado.</div>
+        <div class="acoes"><button type="button" class="btn btn-primario" onclick="ativarNotificacoes()">Ativar notificações</button>${btnInstalar}</div>
+      </div>`;
+  } else if(st==='ios-instalar'){
+    html = `
+      <div class="cartao-push">
+        <div class="txt"><strong>📲 Instale o app no iPhone</strong>Toque em <b>Compartilhar</b> (o quadrado com a seta) e depois em <b>Adicionar à Tela de Início</b>. Abra o app AGITA pelo novo ícone e ative as notificações.</div>
+      </div>`;
+  } else if(st==='bloqueado'){
+    html = compacto ? '' : `
+      <div class="cartao-push">
+        <div class="txt"><strong>🔕 Notificações bloqueadas</strong>Libere as notificações do AGITA nas configurações do navegador deste aparelho e volte aqui.</div>
+      </div>`;
+  } else if(btnInstalar){
+    html = `<div class="cartao-push"><div class="txt"><strong>📲 Instale o app AGITA</strong>Tenha o portal na tela inicial do seu aparelho.</div><div class="acoes">${btnInstalar}</div></div>`;
+  }
+  alvo.innerHTML = html;
+}
+/* envia a notificação em lotes depois de publicar um aviso */
+async function enviarPushAviso(){
+  let desloc = 0, enviadas = 0, total = 0;
+  try{
+    for(let i=0;i<30;i++){
+      const r = await api('push/enviar', {method:'POST', corpo:{deslocamento:desloc}});
+      enviadas += r.enviadas || 0; total = r.total || 0;
+      if(r.proximo === null || r.proximo === undefined) break;
+      desloc = r.proximo;
+    }
+    if(total>0) mostrarToast('Notificação enviada para '+enviadas+' de '+total+' aparelho(s).');
+  }catch(e){}
+}
+
+/* ---------- avisos "novos" (selo e bolinha no menu) ---------- */
+function msAviso(iso){ return Date.parse(iso) || 0; }
+function lerVistoAvisos(){
+  try{
+    const v = localStorage.getItem('agita_avisos_visto');
+    if(v) return Number(v) || 0;
+    localStorage.setItem('agita_avisos_visto', String(Date.now()));
+  }catch(e){}
+  return Date.now();
+}
+function gravarVistoAvisos(){
+  try{ localStorage.setItem('agita_avisos_visto', String(Date.now())); }catch(e){}
+  atualizarBadgeAvisos(0);
+}
+async function atualizarBadgeAvisos(forcar){
+  let n = 0;
+  if(forcar === undefined){
+    try{ const d = await api('avisos/contagem?desde='+lerVistoAvisos()); n = d.novos || 0; }catch(e){ return; }
+  } else { n = forcar; }
+  document.querySelectorAll('#menu-desktop button[data-secao="avisos"], #menu-mobile button[data-secao="avisos"]').forEach(function(b){
+    let s = b.querySelector('.bolinha-novo');
+    if(n>0){
+      if(!s){ s = document.createElement('span'); s.className = 'bolinha-novo'; b.appendChild(s); }
+      s.textContent = n>9 ? '9+' : String(n);
+    } else if(s){ s.remove(); }
+  });
+  try{
+    if('setAppBadge' in navigator){ if(n>0) navigator.setAppBadge(n).catch(function(){}); else navigator.clearAppBadge().catch(function(){}); }
+  }catch(e){}
+}
+setInterval(function(){
+  if(typeof usuarioLogado !== 'undefined' && usuarioLogado && !document.hidden && typeof secaoAtual !== 'undefined' && secaoAtual !== 'avisos') atualizarBadgeAvisos();
+}, 60000);
+
+/* ---------- mural de avisos (visão dos pais) ---------- */
+function renderMuralPais(alvo){
+  const visto = lerVistoAvisos();
+  const ultimo = avisosCache[0];
+  const resto = avisosCache.slice(1);
+  const novo = function(a){ return msAviso(a.criado_em) > visto; };
+  alvo.innerHTML = `
+    <article class="mural-destaque" onclick="abrirAvisoAmpliado('${ultimo.id}')">
+      <div class="mural-destaque-topo">
+        <span class="mural-etiqueta">Último aviso</span>
+        ${novo(ultimo) ? '<span class="selo-novo">Novo</span>' : ''}
+        <span class="mural-data">${formatarDataHora(ultimo.criado_em)}</span>
+      </div>
+      <img src="${ultimo.imagem}" alt="${escaparTexto(ultimo.titulo)}">
+      <div class="mural-destaque-rodape">
+        <strong>${escaparTexto(ultimo.titulo)}</strong>
+        <div class="barra-acoes" style="margin:0;">
+          <button type="button" class="btn btn-sm btn-primario" onclick="event.stopPropagation();abrirAvisoAmpliado('${ultimo.id}')">Ver ampliado</button>
+          <a class="btn btn-sm btn-secundario" href="${ultimo.imagem}" download="agita-aviso.png" onclick="event.stopPropagation()">Baixar</a>
+        </div>
+      </div>
+    </article>
+    ${resto.length ? `
+      <h3 class="mural-titulo">Avisos anteriores</h3>
+      <div class="mural-grade">
+        ${resto.map(function(a){ return `
+          <div class="mural-card" onclick="abrirAvisoAmpliado('${a.id}')">
+            ${novo(a) ? '<span class="selo-novo">Novo</span>' : ''}
+            <img src="${a.imagem}" alt="${escaparTexto(a.titulo)}" loading="lazy">
+            <div class="info"><div class="t">${escaparTexto(a.titulo)}</div><div class="d">${formatarDataHora(a.criado_em)}</div></div>
+          </div>`; }).join('')}
+      </div>` : ''}
+  `;
+  setTimeout(gravarVistoAvisos, 2500);
+}
+function abrirAvisoAmpliado(id){
+  const a = avisosCache.find(function(x){ return x.id===id; });
+  if(!a) return;
+  abrirModal(`
+    <div style="text-align:center;">
+      <img src="${a.imagem}" alt="${escaparTexto(a.titulo)}" style="width:100%;border-radius:12px;display:block;margin-bottom:12px;">
+      <div style="font-weight:700;color:var(--azul-escuro);margin-bottom:2px;">${escaparTexto(a.titulo)}</div>
+      <div class="rotulo" style="margin-bottom:14px;">${formatarDataHora(a.criado_em)}</div>
+      <div class="barra-acoes" style="justify-content:center;">
+        <a class="btn btn-secundario btn-sm" href="${a.imagem}" download="agita-aviso.png">Baixar</a>
+        <button type="button" class="btn btn-primario btn-sm" onclick="fecharModal()">Fechar</button>
+      </div>
+    </div>`);
+}
+/* cartão de notificações também no Início dos pais */
+const __renderInicioOriginal = renderInicio;
+renderInicio = async function(){
+  await __renderInicioOriginal();
+  if(typeof usuarioLogado !== 'undefined' && usuarioLogado && !podeGerenciar()){
+    const c = document.getElementById('conteudo');
+    if(c && !document.getElementById('cartao-push')){
+      const d = document.createElement('div');
+      d.id = 'cartao-push'; d.dataset.modo = 'inicio';
+      c.insertBefore(d, c.children[1] || null);
+    }
+    atualizarCartaoPush();
+  }
+};
 
 function irPara(secao){
   secaoAtual = secao;
@@ -1973,9 +2238,11 @@ async function renderAvisos(){
       <div class="cabecalho-secao">
         <div><h2>Avisos do clube</h2><p>Comunicados publicados pela coordenação.</p></div>
       </div>
-      <div class="cartao"><div id="galeria-avisos">Carregando...</div></div>
+      <div id="cartao-push"></div>
+      <div id="galeria-avisos">Carregando...</div>
     `;
     await renderGaleriaAvisos();
+    atualizarCartaoPush();
     return;
   }
 
@@ -1989,6 +2256,7 @@ async function renderAvisos(){
     <div class="cabecalho-secao">
       <div><h2>Gerador de avisos</h2><p>Crie banners padronizados para avisar sobre aulas, feriados e aniversariantes.</p></div>
     </div>
+    <div id="cartao-push"></div>
     <div class="grade-aviso">
       <div class="cartao">
         <div class="tipos-aviso" id="tipos-aviso"></div>
@@ -2016,6 +2284,7 @@ async function renderAvisos(){
   renderCamposExtraAviso();
   desenharAviso();
   await renderGaleriaAvisos();
+  atualizarCartaoPush();
 }
 async function renderGaleriaAvisos(){
   const ehAdmin = podeGerenciar();
@@ -2029,6 +2298,7 @@ async function renderGaleriaAvisos(){
     alvo.innerHTML = `<div class="vazio">Nenhum aviso publicado ainda.</div>`;
     return;
   }
+  if(!ehAdmin){ renderMuralPais(alvo); return; }
   alvo.innerHTML = `
     <div class="grade-dashboard">
       ${avisosCache.map(av=>`
@@ -2190,6 +2460,7 @@ async function publicarAviso(){
   }catch(e){ return; }
   await renderGaleriaAvisos();
   mostrarToast('Aviso publicado no mural.');
+  enviarPushAviso();
 }
 async function excluirAvisoPublicado(id){
   try{ await api('avisos/'+id, {method:'DELETE'}); }catch(e){ return; }
