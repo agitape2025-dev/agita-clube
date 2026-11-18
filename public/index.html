@@ -1859,12 +1859,40 @@ async function renderFinanceiroValoresMensalidade(){
 function renderTabelaValoresMensalidade(){
   const alvo = document.getElementById('tabela-valores-mensalidade');
   if(valoresMensalidadeCache.length===0){ alvo.innerHTML = `<div class="vazio">Nenhuma atleta cadastrada ainda.</div>`; return; }
+  const estiloFiltro = 'width:100%;padding:6px 8px;font-size:.85rem;font-weight:400;';
   alvo.innerHTML = `
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+      <button class="btn btn-sm btn-secundario" onclick="limparFiltrosValoresMensalidade()">Limpar filtros</button>
+      <span id="vm-contador" style="color:var(--texto-suave);font-size:.9rem;"></span>
+    </div>
     <table>
-      <thead><tr><th>Nome</th><th>Responsável</th><th>Setor</th><th>Mensalidade</th><th></th></tr></thead>
+      <thead>
+        <tr><th>Nome</th><th>Responsável</th><th>Setor</th><th>Mensalidade</th><th></th></tr>
+        <tr class="vm-linha-filtros">
+          <th><input type="search" id="vm-f-nome" placeholder="Filtrar nome" style="${estiloFiltro}" oninput="aplicarFiltrosValoresMensalidade()"></th>
+          <th><input type="search" id="vm-f-resp" placeholder="Filtrar responsável" style="${estiloFiltro}" oninput="aplicarFiltrosValoresMensalidade()"></th>
+          <th>
+            <select id="vm-f-setor" style="${estiloFiltro}" onchange="aplicarFiltrosValoresMensalidade()">
+              <option value="">Todos os setores</option>
+              <option value="ESCOLINHA">Escolinha</option>
+              <option value="PRE-EQUIPE">Pré-equipe</option>
+              <option value="ALTO RENDIMENTO">Alto rendimento</option>
+              <option value="__sem">Sem setor</option>
+            </select>
+          </th>
+          <th>
+            <select id="vm-f-mens" style="${estiloFiltro}" onchange="aplicarFiltrosValoresMensalidade()">
+              <option value="">Todas</option>
+              <option value="preenchidas">Preenchidas</option>
+              <option value="branco">Em branco</option>
+            </select>
+          </th>
+          <th></th>
+        </tr>
+      </thead>
       <tbody>
         ${valoresMensalidadeCache.map(a=>`
-          <tr>
+          <tr data-setor="${a.setor||'__sem'}">
             <td>${a.nome}</td>
             <td>${a.responsavel||'—'}</td>
             <td>${formatarSetor(a.setor)}</td>
@@ -1875,6 +1903,31 @@ function renderTabelaValoresMensalidade(){
       </tbody>
     </table>
   `;
+  aplicarFiltrosValoresMensalidade();
+}
+function aplicarFiltrosValoresMensalidade(){
+  // Só mostra/esconde linhas (não recria a tabela), para não perder valores digitados e ainda não salvos
+  const norm = t => String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+  const val = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+  const fNome = norm(val('vm-f-nome')), fResp = norm(val('vm-f-resp'));
+  const fSetor = val('vm-f-setor'), fMens = val('vm-f-mens');
+  const linhas = document.querySelectorAll('#tabela-valores-mensalidade tbody tr');
+  let visiveis = 0;
+  linhas.forEach(tr=>{
+    const preenchido = tr.querySelector('input').value !== '';
+    const ok = norm(tr.cells[0].textContent).includes(fNome)
+      && norm(tr.cells[1].textContent).includes(fResp)
+      && (!fSetor || tr.dataset.setor === fSetor)
+      && (!fMens || (fMens==='preenchidas' ? preenchido : !preenchido));
+    tr.style.display = ok ? '' : 'none';
+    if(ok) visiveis++;
+  });
+  const contador = document.getElementById('vm-contador');
+  if(contador) contador.textContent = visiveis + ' de ' + linhas.length + ' atletas';
+}
+function limparFiltrosValoresMensalidade(){
+  ['vm-f-nome','vm-f-resp','vm-f-setor','vm-f-mens'].forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
+  aplicarFiltrosValoresMensalidade();
 }
 async function salvarValorMensalidade(atletaId){
   const campo = document.getElementById('vm-'+atletaId);
