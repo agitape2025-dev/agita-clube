@@ -438,6 +438,11 @@
 .aniv-item .barra-acoes{padding:0 14px}
 .selo-publicado{display:inline-block;background:#E3F6EC;color:#1A7A47;font-weight:800;font-size:.85rem;padding:6px 12px;border-radius:999px}
 
+
+.passos-app{padding-left:20px;margin:8px 0;line-height:1.55}
+.passos-app li{margin-bottom:6px}
+.menu-app-btn{white-space:nowrap}
+
 /* ===== Visual ginástica + Ginger ===== */
 
   /* =====================================================================
@@ -1128,6 +1133,15 @@ function montarMenu(){
     b2.onclick = ()=>{irPara(item.id); alternarMenuMobile(true);};
     mobile.appendChild(b2);
   });
+  if(!emModoApp()){
+    const ba = document.createElement('button');
+    ba.textContent = '📲 Baixar app'; ba.className = 'menu-app-btn';
+    ba.onclick = ()=>abrirInstalarApp();
+    desktop.appendChild(ba);
+    const bb = ba.cloneNode(true);
+    bb.onclick = ()=>{abrirInstalarApp(); alternarMenuMobile(true);};
+    mobile.appendChild(bb);
+  }
 }
 function alternarMenuMobile(forcarFechar){
   const m = document.getElementById('menu-mobile');
@@ -1911,6 +1925,29 @@ renderInicio = async function(){
   await __renderInicioAniv();
   if(typeof usuarioLogado !== 'undefined' && usuarioLogado && podeGerenciar()) mostrarAniversariosInicio();
 };
+
+
+/* ---------- botão "Baixar app" no menu ---------- */
+function abrirInstalarApp(){
+  const jaApp = emModoApp();
+  let corpo = '';
+  if(jaApp){
+    corpo = '<p>Você já está usando o app do AGITA neste aparelho. 🎉</p>';
+  } else if(promptInstalacao){
+    corpo = '<p>Toque no botão abaixo para colocar o AGITA na tela inicial do seu aparelho.</p><div class="barra-acoes" style="justify-content:center;"><button type="button" class="btn btn-primario" onclick="instalarApp();fecharModal();">📲 Instalar agora</button></div>';
+  } else if(ehIOS()){
+    corpo = '<p><b>No iPhone ou iPad</b> (use o Safari):</p><ol class="passos-app"><li>Toque em <b>Compartilhar</b> (o quadrado com a seta para cima).</li><li>Escolha <b>Adicionar à Tela de Início</b>.</li><li>Toque em <b>Adicionar</b> e abra o app AGITA pelo novo ícone.</li><li>Dentro do app, ative as <b>notificações</b> na tela de Avisos.</li></ol>';
+  } else {
+    corpo = '<p><b>No Android (Chrome)</b>:</p><ol class="passos-app"><li>Toque nos <b>três pontinhos</b> no canto superior do navegador.</li><li>Escolha <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.</li><li>Confirme e abra o AGITA pelo novo ícone.</li></ol><p><b>No computador</b>: clique no ícone de instalar na barra de endereço do Chrome ou Edge.</p>';
+  }
+  abrirModal(`
+    <div style="text-align:center;">
+      <h3 style="margin:0 0 10px;font-family:'Baloo 2','Nunito',sans-serif;color:var(--azul-escuro);">📲 Baixar o app do AGITA</h3>
+      <div style="text-align:left;">${corpo}</div>
+      <p class="rotulo" style="margin-top:12px;">Sem loja: o app instala direto pelo navegador, é leve e avisa quando sair um comunicado novo.</p>
+      <div class="barra-acoes" style="justify-content:center;"><button type="button" class="btn btn-secundario btn-sm" onclick="fecharModal()">Fechar</button></div>
+    </div>`);
+}
 
 function irPara(secao){
   secaoAtual = secao;
