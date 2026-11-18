@@ -443,6 +443,16 @@
 .passos-app li{margin-bottom:6px}
 .menu-app-btn{white-space:nowrap}
 
+
+/* ===== Visão dos pais: sem avisos (só a Ginger) ===== */
+.avisos-vazio-pais{display:flex;flex-direction:column;align-items:center;text-align:center;padding:6px 16px 30px}
+.avisos-vazio-pais h3{font-family:'Baloo 2','Nunito',sans-serif;font-size:1.7rem;color:var(--azul-escuro);margin:14px 0 6px}
+.avisos-vazio-pais p{max-width:420px;color:var(--texto-suave);margin:0}
+.ginger-vazia{position:relative;height:min(46vh,340px);aspect-ratio:219/360;cursor:pointer}
+.ginger-vazia .g-img{width:100%;height:100%;background:var(--ginger) no-repeat center bottom/contain;transform-origin:50% 100%;animation:gingerRespira 4.6s ease-in-out infinite;filter:drop-shadow(0 14px 18px rgba(19,42,82,.22))}
+.ginger-vazia::after{content:'';position:absolute;left:8%;right:8%;bottom:-8px;height:16px;background:radial-gradient(closest-side,rgba(19,42,82,.28),transparent);z-index:-1}
+body[data-secao="avisos"].sem-avisos-pais .ginger-guia{display:none}
+
 /* ===== Visual ginástica + Ginger ===== */
 
   /* =====================================================================
@@ -1603,35 +1613,56 @@ setInterval(function(){
 }, 60000);
 
 /* ---------- mural de avisos (visão dos pais) ---------- */
+function gingerVazia(el){
+  el.classList.remove('pulo'); void el.offsetWidth; el.classList.add('pulo');
+  setTimeout(function(){ el.classList.remove('pulo'); }, 900);
+  const r = el.getBoundingClientRect();
+  if(window.confeteBurst) window.confeteBurst(r.left + r.width/2, r.top + 70, 26, 'cima');
+}
 function renderMuralPais(alvo){
+  const hoje = hojeISO();
   const visto = lerVistoAvisos();
-  const ultimo = avisosCache[0];
-  const resto = avisosCache.slice(1);
+  const doDia = avisosCache.filter(function(a){ return validadeAviso(a) <= hoje; });
+  const futuros = avisosCache.filter(function(a){ return validadeAviso(a) > hoje; })
+    .sort(function(a, b){ return validadeAviso(a) < validadeAviso(b) ? -1 : 1; });
   const novo = function(a){ return msAviso(a.criado_em) > visto; };
+
+  if(doDia.length === 0 && futuros.length === 0){
+    document.body.classList.add('sem-avisos-pais');
+    alvo.innerHTML = `
+      <div class="avisos-vazio-pais">
+        <div class="ginger-vazia" role="img" aria-label="Ginger, a raposa mascote do AGITA" onclick="gingerVazia(this)"><div class="g-img"></div></div>
+        <h3>Tudo tranquilo por aqui!</h3>
+        <p>Não há avisos para hoje. Quando o AGITA publicar um comunicado, ele aparece aqui e você recebe uma notificação.</p>
+      </div>`;
+    return;
+  }
+  document.body.classList.remove('sem-avisos-pais');
   alvo.innerHTML = `
-    <article class="mural-destaque" onclick="abrirAvisoAmpliado('${ultimo.id}')">
-      <div class="mural-destaque-topo">
-        <span class="mural-etiqueta">${etiquetaAviso(ultimo)}</span>
-        ${novo(ultimo) ? '<span class="selo-novo">Novo</span>' : ''}
-        <span class="mural-data">${formatarDataHora(ultimo.criado_em)}</span>
-      </div>
-      <img src="${ultimo.imagem}" alt="${escaparTexto(ultimo.titulo)}">
-      <div class="mural-destaque-rodape">
-        <strong>${escaparTexto(ultimo.titulo)}</strong>
-        <div class="barra-acoes" style="margin:0;">
-          <button type="button" class="btn btn-sm btn-primario" onclick="event.stopPropagation();abrirAvisoAmpliado('${ultimo.id}')">Ver ampliado</button>
-          <a class="btn btn-sm btn-secundario" href="${ultimo.imagem}" download="agita-aviso.png" onclick="event.stopPropagation()">Baixar</a>
+    ${doDia.map(function(a){ return `
+      <article class="mural-destaque" onclick="abrirAvisoAmpliado('${a.id}')">
+        <div class="mural-destaque-topo">
+          <span class="mural-etiqueta">Aviso de hoje</span>
+          ${novo(a) ? '<span class="selo-novo">Novo</span>' : ''}
+          <span class="mural-data">${formatarDataHora(a.criado_em)}</span>
         </div>
-      </div>
-    </article>
-    ${resto.length ? `
-      <h3 class="mural-titulo">Outros avisos em vigor</h3>
+        <img src="${a.imagem}" alt="${escaparTexto(a.titulo)}">
+        <div class="mural-destaque-rodape">
+          <strong>${escaparTexto(a.titulo)}</strong>
+          <div class="barra-acoes" style="margin:0;">
+            <button type="button" class="btn btn-sm btn-primario" onclick="event.stopPropagation();abrirAvisoAmpliado('${a.id}')">Ver ampliado</button>
+            <a class="btn btn-sm btn-secundario" href="${a.imagem}" download="agita-aviso.png" onclick="event.stopPropagation()">Baixar</a>
+          </div>
+        </div>
+      </article>`; }).join('')}
+    ${futuros.length ? `
+      <h3 class="mural-titulo">📅 Próximos avisos</h3>
       <div class="mural-grade">
-        ${resto.map(function(a){ return `
+        ${futuros.map(function(a){ return `
           <div class="mural-card" onclick="abrirAvisoAmpliado('${a.id}')">
             ${novo(a) ? '<span class="selo-novo">Novo</span>' : ''}
             <img src="${a.imagem}" alt="${escaparTexto(a.titulo)}" loading="lazy">
-            <div class="info"><div class="t">${escaparTexto(a.titulo)}</div><div class="d">${validadeAviso(a) > hojeISO() ? 'Vale até ' + formatarData(validadeAviso(a)) : formatarDataHora(a.criado_em)}</div></div>
+            <div class="info"><div class="t">${escaparTexto(a.titulo)}</div><div class="d">Vale até ${formatarData(validadeAviso(a))}</div></div>
           </div>`; }).join('')}
       </div>` : ''}
   `;
@@ -2622,7 +2653,7 @@ async function renderGaleriaAvisos(){
   }catch(e){ avisosCache = []; }
   const alvo = document.getElementById('galeria-avisos');
   if(!alvo) return;
-  if(avisosCache.length===0){
+  if(avisosCache.length===0 && ehAdmin){
     alvo.innerHTML = `<div class="vazio">${ehAdmin ? 'Nenhum aviso publicado ainda.' : 'Nenhum aviso por hoje. 🎉 Quando o AGITA publicar um comunicado, ele aparece aqui e você recebe uma notificação.'}</div>`;
     return;
   }
