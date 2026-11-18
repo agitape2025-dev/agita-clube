@@ -1764,21 +1764,24 @@ function renderTabelaMensalidades(){
   const cores = {pago:'#1c8a55', a_vencer:'#b8860b', inadimplente:'#c0392b'};
   alvo.innerHTML = `
     <table>
-      <thead><tr><th></th><th>Atleta</th><th>Mês</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Pagamento</th><th></th></tr></thead>
+      <thead><tr><th></th><th>Atleta</th><th>Responsável</th><th>Mês</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Pagamento</th><th>Observação</th><th></th></tr></thead>
       <tbody>
         ${lista.map(m=>`
           <tr>
             <td><input type="checkbox" class="mn-selecionar" data-id="${m.id}" style="width:auto;"></td>
             <td>${m.atleta_nome||'—'}</td>
+            <td>${m.responsavel||'—'}${m.telefone?`<div style="font-size:0.8em;color:var(--texto-suave);">${m.telefone}</div>`:''}</td>
             <td>${formatarMesReferencia(m.mes_referencia)}</td>
             <td>${formatarMoeda(m.valor)}${m.desconto_aplicado?' <span style="color:var(--laranja-forte);font-size:0.8em;">(-10%)</span>':''}</td>
             <td>${formatarData(m.vencimento)}</td>
             <td style="color:${cores[m.status]};font-weight:600;">${rotuloStatusMensalidade(m.status)}${m.status==='inadimplente'?` (${m.diasAtraso}d)`:''}</td>
             <td>${m.data_pagamento ? formatarData(m.data_pagamento) : '—'}</td>
+            <td style="max-width:220px;white-space:normal;">${escaparTexto(m.observacao)||'—'}</td>
             <td style="white-space:nowrap;">
               ${m.data_pagamento
                 ? `<button class="btn btn-sm btn-secundario" onclick="marcarMensalidade('${m.id}', false)">Desmarcar</button>`
                 : `<button class="btn btn-sm btn-primario" onclick="marcarMensalidade('${m.id}', true, ${m.valor})">Marcar pago</button>`}
+              <button class="btn btn-sm btn-secundario" onclick="abrirEdicaoMensalidade('${m.id}')">Editar</button>
               <button class="btn btn-sm btn-perigo" onclick="excluirMensalidade('${m.id}')">Excluir</button>
             </td>
           </tr>
@@ -1833,6 +1836,43 @@ async function excluirMensalidadesSelecionadas(){
   montarFiltroMesMensalidades();
   renderTabelaMensalidades();
 }
+function escaparTexto(t){
+  return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function abrirEdicaoMensalidade(id){
+  const m = mensalidadesCache.find(x=>x.id===id);
+  if(!m) return;
+  abrirModal(`
+    <h3>Editar mensalidade</h3>
+    <p style="margin-top:0;color:var(--texto-suave);">
+      <strong>${escaparTexto(m.atleta_nome||'—')}</strong> — ${formatarMesReferencia(m.mes_referencia)}<br>
+      Responsável: ${escaparTexto(m.responsavel||'—')}${m.telefone?' · '+escaparTexto(m.telefone):''}
+    </p>
+    <div class="linha-form">
+      <div class="campo"><label>Vencimento</label><input type="date" id="me-vencimento" value="${escaparTexto(m.vencimento||'')}"></div>
+      <div class="campo"><label>Valor (R$)</label><input type="number" step="0.01" id="me-valor" value="${escaparTexto(m.valor)}"></div>
+    </div>
+    <div class="campo"><label>Observação</label><textarea id="me-obs" rows="3" style="width:100%;font:inherit;padding:10px 12px;border:1px solid var(--linha);border-radius:10px;">${escaparTexto(m.observacao||'')}</textarea></div>
+    <div class="barra-acoes">
+      <button class="btn btn-primario" onclick="salvarEdicaoMensalidade('${m.id}')">Salvar</button>
+      <button class="btn btn-secundario" onclick="fecharModal()">Cancelar</button>
+    </div>
+  `);
+}
+async function salvarEdicaoMensalidade(id){
+  const vencimento = document.getElementById('me-vencimento').value;
+  const valor = parseFloat(document.getElementById('me-valor').value);
+  const observacao = document.getElementById('me-obs').value.trim();
+  if(!vencimento){ mostrarToast('Informe o vencimento.'); return; }
+  if(!(valor>0)){ mostrarToast('Informe um valor válido.'); return; }
+  try{ await api('mensalidades/'+id, {method:'PUT', corpo:{vencimento, valor, observacao}}); }catch(e){ return; }
+  fecharModal();
+  mensalidadesCache = (await api('mensalidades')).mensalidades;
+  montarFiltroMesMensalidades();
+  renderTabelaMensalidades();
+  mostrarToast('Mensalidade atualizada.');
+}
+
 async function marcarMensalidade(id, pago, valor){
   const corpo = pago ? {dataPagamento: new Date().toISOString().slice(0,10), valorPago: valor} : {dataPagamento:null, valorPago:null};
   try{ await api('mensalidades/'+id, {method:'PUT', corpo}); }catch(e){ return; }
@@ -1931,7 +1971,7 @@ function renderTabelaValoresMensalidade(){
     </div>
     <table>
       <thead>
-        <tr><th>Nome</th><th>Responsável</th><th>Setor</th><th>Mensalidade</th><th></th></tr>
+        <tr><th>Nome</th><th>Responsável</th><th>Setor</th><th>Mensalidade</th><th>Observação</th><th></th></tr>
         <tr class="vm-linha-filtros">
           <th><input type="search" id="vm-f-nome" placeholder="Filtrar nome" style="${estiloFiltro}" oninput="aplicarFiltrosValoresMensalidade()"></th>
           <th><input type="search" id="vm-f-resp" placeholder="Filtrar responsável" style="${estiloFiltro}" oninput="aplicarFiltrosValoresMensalidade()"></th>
@@ -1952,6 +1992,7 @@ function renderTabelaValoresMensalidade(){
             </select>
           </th>
           <th></th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -1961,6 +2002,7 @@ function renderTabelaValoresMensalidade(){
             <td>${a.responsavel||'—'}</td>
             <td>${formatarSetor(a.setor)}</td>
             <td><input type="number" step="0.01" id="vm-${a.id}" value="${a.valor_mensalidade!=null?a.valor_mensalidade:''}" placeholder="—" style="max-width:130px;"></td>
+            <td><input type="text" id="vo-${a.id}" value="${escaparTexto(a.observacao_mensalidade||'')}" placeholder="Observação" style="min-width:220px;"></td>
             <td><button class="btn btn-sm btn-primario" onclick="salvarValorMensalidade('${a.id}')">Salvar</button></td>
           </tr>
         `).join('')}
@@ -1996,10 +2038,10 @@ function limparFiltrosValoresMensalidade(){
 async function salvarValorMensalidade(atletaId){
   const campo = document.getElementById('vm-'+atletaId);
   const valor = campo.value === '' ? null : parseFloat(campo.value);
-  try{ await api('valores-mensalidade/'+atletaId, {method:'PUT', corpo:{valor}}); }catch(e){ return; }
-  mostrarToast('Valor de mensalidade atualizado.');
+  try{ await api('valores-mensalidade/'+atletaId, {method:'PUT', corpo:{valor, observacao: (document.getElementById('vo-'+atletaId)||{value:''}).value}}); }catch(e){ return; }
+  mostrarToast('Mensalidade da atleta atualizada.');
   const item = valoresMensalidadeCache.find(a=>a.id===atletaId);
-  if(item) item.valor_mensalidade = valor;
+  if(item){ item.valor_mensalidade = valor; item.observacao_mensalidade = (document.getElementById('vo-'+atletaId)||{value:''}).value.trim() || null; }
 }
 
 
