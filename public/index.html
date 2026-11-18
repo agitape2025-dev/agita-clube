@@ -1836,7 +1836,7 @@ async function gerarCartaoAniversario(a){
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 8;
     ctx.drawImage(ginger, W - gw - 20, H - gh - 6, gw, gh); ctx.restore();
   }
-  return cv.toDataURL('image/png');
+  return cv.toDataURL('image/jpeg', 0.88);
 }
 
 async function renderAniversariantesHoje(){
@@ -1900,7 +1900,7 @@ async function publicarTodosAniversarios(){
 function baixarCartaoAniversario(id){
   const img = cartoesAniv[id]; if(!img) return;
   const a = document.createElement('a');
-  a.href = img; a.download = 'agita-aniversario.png';
+  a.href = img; a.download = 'agita-aniversario.jpg';
   document.body.appendChild(a); a.click(); a.remove();
 }
 
