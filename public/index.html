@@ -363,6 +363,35 @@
     .usuario-chip{display:none;}
   }
 
+
+/* ===== Chamada ===== */
+.abas-chamada{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.linha-filtros-chamada{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+.linha-filtros-chamada .campo{flex:1 1 180px;max-width:280px;margin-bottom:8px}
+.chips-setor{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.resumo-chamada{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.contadores-chamada{display:flex;gap:8px;flex-wrap:wrap}
+.cont{padding:6px 14px;border-radius:999px;font-weight:800;font-size:.85rem;background:#EEF2F9;color:#132A52}
+.cont.ok{background:#E3F6EC;color:#1A7A47}
+.cont.falta{background:#FDE6E6;color:#B3261E}
+.acoes-chamada{display:flex;gap:8px;flex-wrap:wrap}
+.aviso-chamada{background:#FFF4E0;border-left:4px solid #F2892B;padding:8px 12px;border-radius:8px;margin:8px 0;font-size:.9rem}
+.dica-chamada{margin:6px 0 12px;color:#5b6b85;font-size:.88rem}
+.lista-chamada{display:flex;flex-direction:column;gap:8px}
+.linha-chamada{display:flex;align-items:center;gap:12px;padding:12px 14px;border:2px solid #E4E9F2;border-radius:14px;cursor:pointer;background:#fff;transition:transform .15s ease,border-color .15s ease,background .15s ease,box-shadow .15s ease}
+.linha-chamada:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(19,42,82,.10)}
+.linha-chamada input{width:22px;height:22px;accent-color:#B3261E;flex:none}
+.linha-chamada .nome-chamada{flex:1;font-weight:700;color:#132A52}
+.linha-chamada .tag-setor-chamada{font-size:.78rem;color:#5b6b85;background:#EEF2F9;padding:3px 10px;border-radius:999px}
+.linha-chamada .selo-chamada{font-size:.78rem;font-weight:800;color:#1A7A47;min-width:62px;text-align:right}
+.linha-chamada.faltou{border-color:#F4A6A1;background:#FFF2F1}
+.linha-chamada.faltou .selo-chamada{color:#B3261E}
+.barra-freq{position:relative;height:22px;min-width:120px;background:#EEF2F9;border-radius:999px;overflow:hidden}
+.barra-freq-fill{position:absolute;inset:0 auto 0 0;border-radius:999px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.barra-freq-fill.alta{background:#52C48A}.barra-freq-fill.media{background:#F2B24B}.barra-freq-fill.baixa{background:#F0827A}
+.barra-freq span{position:relative;z-index:1;display:block;text-align:center;font-size:.78rem;font-weight:800;line-height:22px;color:#132A52}
+@media(max-width:560px){.linha-chamada{flex-wrap:wrap}.linha-chamada .nome-chamada{flex-basis:calc(100% - 40px)}}
+
 /* ===== Visual ginástica + Ginger ===== */
 
   /* =====================================================================
@@ -1030,6 +1059,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
 const ITENS_MENU = [
   {id:'inicio', rotulo:'Início'},
   {id:'atletas', rotulo:'Atletas', somenteEquipe:true},
+  {id:'chamada', rotulo:'Chamada', somenteEquipe:true},
   {id:'documentos', rotulo:'Documentos', somenteEquipe:true},
   {id:'pagamentos', rotulo:'Pagamentos', somenteEquipe:true},
   {id:'calendario', rotulo:'Calendário'},
@@ -1059,6 +1089,295 @@ function alternarMenuMobile(forcarFechar){
   if(forcarFechar){ m.style.display='none'; return; }
   m.style.display = (m.style.display==='flex') ? 'none' : 'flex';
 }
+
+/* ================================================================
+   CHAMADA / FREQUÊNCIA
+   ================================================================ */
+let chamadaAba = 'fazer';
+let chamadaData = '';
+let chamadaSetor = 'todos';
+let chamadaCache = [];
+let chamadaFaltas = new Set();
+let chamadaJaRegistrada = false;
+let freqSetor = 'todos';
+let freqDados = [];
+let freqAulas = 0;
+
+const SETORES_CHAMADA = [
+  ['todos','Todos'], ['ESCOLINHA','Escolinha'], ['PRE-EQUIPE','Pré-equipe'], ['ALTO RENDIMENTO','Alto rendimento']
+];
+function hojeISO(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function chipsSetorChamada(atual, fn){
+  return SETORES_CHAMADA.map(([k,r])=>
+    `<button type="button" class="btn btn-sm ${atual===k?'btn-primario':'btn-secundario'}" onclick="${fn}('${k}')">${r}</button>`
+  ).join('');
+}
+
+async function renderChamada(){
+  if(!ehEquipe()){ irPara('inicio'); return; }
+  const c = document.getElementById('conteudo');
+  if(!podeGerenciar()) chamadaAba = 'frequencia';
+  if(!chamadaData) chamadaData = hojeISO();
+  c.innerHTML = `
+    <div class="cabecalho-secao">
+      <div><h2>Chamada</h2><p>Registre as faltas do treino e acompanhe a frequência das atletas.</p></div>
+    </div>
+    ${podeGerenciar() ? `
+    <div class="abas-chamada">
+      <button type="button" id="aba-chamada-fazer" class="btn" onclick="trocarAbaChamada('fazer')">✅ Fazer chamada</button>
+      <button type="button" id="aba-chamada-frequencia" class="btn" onclick="trocarAbaChamada('frequencia')">📊 Frequência</button>
+    </div>` : ''}
+    <div id="chamada-corpo"></div>
+  `;
+  trocarAbaChamada(chamadaAba);
+}
+function trocarAbaChamada(aba){
+  chamadaAba = aba;
+  ['fazer','frequencia'].forEach(k=>{
+    const b = document.getElementById('aba-chamada-'+k);
+    if(b){ b.classList.toggle('btn-primario', k===aba); b.classList.toggle('btn-secundario', k!==aba); }
+  });
+  if(aba==='fazer') renderFazerChamada(); else renderFrequencia();
+}
+
+/* ---------- fazer chamada ---------- */
+function renderFazerChamada(){
+  const corpo = document.getElementById('chamada-corpo');
+  corpo.innerHTML = `
+    <div class="cartao">
+      <div class="linha-filtros-chamada">
+        <div class="campo"><label>Data do treino</label><input type="date" id="chamada-data" value="${chamadaData}" onchange="chamadaMudouData(this.value)"></div>
+        <div class="campo"><label>Buscar atleta</label><input type="text" id="chamada-busca" placeholder="Nome..." oninput="desenharListaChamada()"></div>
+      </div>
+      <div class="chips-setor" id="chamada-chips"></div>
+    </div>
+    <div class="cartao">
+      <div id="chamada-resumo"></div>
+      <div id="chamada-lista">Carregando...</div>
+    </div>
+  `;
+  carregarChamada();
+}
+async function carregarChamada(){
+  try{
+    const d = await api('chamada?data='+encodeURIComponent(chamadaData));
+    chamadaCache = d.atletas || [];
+  }catch(e){ chamadaCache = []; }
+  chamadaFaltas = new Set(chamadaCache.filter(a=>a.status==='F').map(a=>a.id));
+  chamadaJaRegistrada = chamadaCache.some(a=>a.status);
+  const ch = document.getElementById('chamada-chips');
+  if(ch) ch.innerHTML = chipsSetorChamada(chamadaSetor, 'mudarSetorChamada');
+  desenharListaChamada();
+}
+function chamadaMudouData(v){
+  if(!v) return;
+  chamadaData = v;
+  carregarChamada();
+}
+function mudarSetorChamada(k){
+  chamadaSetor = k;
+  const ch = document.getElementById('chamada-chips');
+  if(ch) ch.innerHTML = chipsSetorChamada(chamadaSetor, 'mudarSetorChamada');
+  desenharListaChamada();
+}
+function listaVisivelChamada(){
+  const busca = (document.getElementById('chamada-busca')?.value || '').toLowerCase();
+  return chamadaCache.filter(a=>
+    (chamadaSetor==='todos' || a.setor===chamadaSetor) && (a.nome||'').toLowerCase().includes(busca)
+  );
+}
+function desenharListaChamada(){
+  const alvo = document.getElementById('chamada-lista');
+  if(!alvo) return;
+  const lista = listaVisivelChamada();
+  if(lista.length===0){
+    alvo.innerHTML = `<div class="vazio">Nenhuma atleta encontrada neste setor.</div>`;
+    atualizarResumoChamada();
+    return;
+  }
+  alvo.innerHTML = `<div class="lista-chamada">` + lista.map(a=>{
+    const falta = chamadaFaltas.has(a.id);
+    return `
+      <label class="linha-chamada ${falta?'faltou':''}">
+        <input type="checkbox" ${falta?'checked':''} onchange="alternarFaltaChamada('${a.id}', this)">
+        <span class="nome-chamada">${escaparTexto(a.nome)}</span>
+        <span class="tag-setor-chamada">${formatarSetor(a.setor)}</span>
+        <span class="selo-chamada">${falta?'FALTOU':'Presente'}</span>
+      </label>`;
+  }).join('') + `</div>`;
+  atualizarResumoChamada();
+}
+function alternarFaltaChamada(id, el){
+  if(el.checked) chamadaFaltas.add(id); else chamadaFaltas.delete(id);
+  const linha = el.closest('.linha-chamada');
+  if(linha){
+    linha.classList.toggle('faltou', el.checked);
+    const selo = linha.querySelector('.selo-chamada');
+    if(selo) selo.textContent = el.checked ? 'FALTOU' : 'Presente';
+  }
+  atualizarResumoChamada();
+}
+function atualizarResumoChamada(){
+  const alvo = document.getElementById('chamada-resumo');
+  if(!alvo) return;
+  const lista = listaVisivelChamada();
+  const faltas = lista.filter(a=>chamadaFaltas.has(a.id)).length;
+  const pres = lista.length - faltas;
+  alvo.innerHTML = `
+    <div class="resumo-chamada">
+      <div class="contadores-chamada">
+        <span class="cont ok">${pres} presente${pres===1?'':'s'}</span>
+        <span class="cont falta">${faltas} falta${faltas===1?'':'s'}</span>
+        <span class="cont total">${lista.length} na lista</span>
+      </div>
+      <div class="acoes-chamada">
+        <button type="button" class="btn btn-secundario btn-sm" onclick="limparFaltasChamada()">Todas presentes</button>
+        <button type="button" class="btn btn-primario" onclick="salvarChamada()" ${lista.length?'':'disabled'}>💾 Salvar chamada</button>
+      </div>
+    </div>
+    ${chamadaJaRegistrada ? `<p class="aviso-chamada">Já existe chamada registrada nesta data. Ao salvar, ela será atualizada.</p>` : ''}
+    <p class="dica-chamada">Marque apenas as atletas que <strong>faltaram</strong>. As demais ficam como presentes.</p>
+  `;
+}
+function limparFaltasChamada(){
+  listaVisivelChamada().forEach(a=>chamadaFaltas.delete(a.id));
+  desenharListaChamada();
+}
+async function salvarChamada(){
+  const lista = listaVisivelChamada();
+  if(lista.length===0){ mostrarToast('Nenhuma atleta na lista.'); return; }
+  const faltas = lista.filter(a=>chamadaFaltas.has(a.id)).map(a=>a.id);
+  try{
+    await api('chamada', {method:'PUT', corpo:{data:chamadaData, atletas:lista.map(a=>a.id), faltas}});
+    lista.forEach(a=>{ a.status = chamadaFaltas.has(a.id) ? 'F' : 'P'; });
+    chamadaJaRegistrada = true;
+    atualizarResumoChamada();
+    mostrarToast('Chamada salva com sucesso! '+faltas.length+' falta(s) em '+lista.length+' atletas.');
+  }catch(e){}
+}
+
+/* ---------- frequência ---------- */
+function renderFrequencia(){
+  const corpo = document.getElementById('chamada-corpo');
+  const hoje = hojeISO();
+  const ini = hoje.slice(0,8)+'01';
+  corpo.innerHTML = `
+    <div class="cartao">
+      <div class="linha-filtros-chamada">
+        <div class="campo"><label>De</label><input type="date" id="freq-de" value="${ini}"></div>
+        <div class="campo"><label>Até</label><input type="date" id="freq-ate" value="${hoje}"></div>
+        <div class="campo" style="align-self:end;"><button type="button" class="btn btn-primario" onclick="carregarFrequencia()">Gerar relatório</button></div>
+      </div>
+      <div class="chips-setor" id="freq-chips">${chipsSetorChamada(freqSetor,'mudarSetorFreq')}</div>
+    </div>
+    <div class="cartao">
+      <div id="freq-resumo"></div>
+      <div class="tabela-wrap" id="freq-tabela">Carregando...</div>
+    </div>
+  `;
+  carregarFrequencia();
+}
+async function carregarFrequencia(){
+  const de = document.getElementById('freq-de')?.value;
+  const ate = document.getElementById('freq-ate')?.value;
+  if(!de || !ate){ mostrarToast('Informe o período.'); return; }
+  try{
+    const d = await api('chamada/relatorio?de='+encodeURIComponent(de)+'&ate='+encodeURIComponent(ate));
+    freqDados = d.atletas || [];
+    freqAulas = d.aulas || 0;
+  }catch(e){ freqDados = []; freqAulas = 0; }
+  desenharFrequencia();
+}
+function mudarSetorFreq(k){
+  freqSetor = k;
+  const ch = document.getElementById('freq-chips');
+  if(ch) ch.innerHTML = chipsSetorChamada(freqSetor,'mudarSetorFreq');
+  desenharFrequencia();
+}
+function listaFrequencia(){
+  return freqDados.filter(a=> freqSetor==='todos' || a.setor===freqSetor);
+}
+function pctFreq(a){
+  const t = (a.presencas||0) + (a.faltas||0);
+  return t ? Math.round((a.presencas||0)*100/t) : null;
+}
+function desenharFrequencia(){
+  const alvo = document.getElementById('freq-tabela');
+  const res = document.getElementById('freq-resumo');
+  if(!alvo) return;
+  const lista = listaFrequencia();
+  const comReg = lista.filter(a=>pctFreq(a)!==null);
+  const media = comReg.length ? Math.round(comReg.reduce((s,a)=>s+pctFreq(a),0)/comReg.length) : null;
+  res.innerHTML = `
+    <div class="resumo-chamada">
+      <div class="contadores-chamada">
+        <span class="cont total">${freqAulas} dia${freqAulas===1?'':'s'} de chamada</span>
+        <span class="cont ok">Frequência média: ${media===null?'—':media+'%'}</span>
+      </div>
+      <div class="acoes-chamada">
+        <button type="button" class="btn btn-secundario btn-sm" onclick="baixarCsvFrequencia()">⬇ Baixar CSV</button>
+        <button type="button" class="btn btn-secundario btn-sm" onclick="imprimirFrequencia()">🖨 Imprimir / PDF</button>
+      </div>
+    </div>`;
+  if(lista.length===0){ alvo.innerHTML = `<div class="vazio">Nenhuma atleta neste setor.</div>`; return; }
+  alvo.innerHTML = `
+    <table>
+      <thead><tr><th>Atleta</th><th>Setor</th><th>Presenças</th><th>Faltas</th><th>Frequência</th></tr></thead>
+      <tbody>
+        ${lista.map(a=>{
+          const p = pctFreq(a);
+          const cor = p===null ? '' : (p>=75 ? 'alta' : (p>=50 ? 'media' : 'baixa'));
+          return `<tr>
+            <td>${escaparTexto(a.nome)}</td>
+            <td>${formatarSetor(a.setor)}</td>
+            <td>${a.presencas||0}</td>
+            <td>${a.faltas||0}</td>
+            <td>${p===null ? '—' : `<div class="barra-freq"><div class="barra-freq-fill ${cor}" style="width:${p}%"></div><span>${p}%</span></div>`}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  adicionarFiltrosColunas(alvo, 'chamada-frequencia');
+}
+function linhasRelatorioFreq(){
+  return listaFrequencia().map(a=>{
+    const p = pctFreq(a);
+    return [a.nome, formatarSetor(a.setor), a.presencas||0, a.faltas||0, p===null ? '' : p+'%'];
+  });
+}
+function baixarCsvFrequencia(){
+  const de = document.getElementById('freq-de')?.value || '';
+  const ate = document.getElementById('freq-ate')?.value || '';
+  const linhas = [['Atleta','Setor','Presenças','Faltas','Frequência']].concat(linhasRelatorioFreq());
+  const csv = '﻿' + linhas.map(l=>l.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'frequencia_'+de+'_a_'+ate+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+}
+function imprimirFrequencia(){
+  const de = document.getElementById('freq-de')?.value || '';
+  const ate = document.getElementById('freq-ate')?.value || '';
+  const setor = SETORES_CHAMADA.find(s=>s[0]===freqSetor)?.[1] || 'Todos';
+  const linhas = linhasRelatorioFreq();
+  const w = window.open('', '_blank');
+  if(!w){ mostrarToast('Permita pop-ups para imprimir o relatório.'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Frequência AGITA</title>
+    <style>body{font-family:Arial,sans-serif;padding:24px;color:#132A52}h1{font-size:20px;margin:0 0 4px}p{margin:0 0 14px;color:#555;font-size:13px}
+    table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#F2892B;color:#fff}tr:nth-child(even) td{background:#fafafa}</style></head><body>
+    <h1>AGITA — Relatório de frequência</h1>
+    <p>Período: ${formatarData(de)} a ${formatarData(ate)} · Setor: ${setor} · ${freqAulas} dia(s) de chamada</p>
+    <table><thead><tr><th>Atleta</th><th>Setor</th><th>Presenças</th><th>Faltas</th><th>Frequência</th></tr></thead><tbody>
+    ${linhas.map(l=>'<tr>'+l.map(v=>'<td>'+escaparTexto(String(v))+'</td>').join('')+'</tr>').join('')}
+    </tbody></table><script>window.onload=function(){window.print();}<\/script></body></html>`);
+  w.document.close();
+}
+
 function irPara(secao){
   secaoAtual = secao;
   document.querySelectorAll('#menu-desktop button, #menu-mobile button').forEach(b=>{
@@ -1067,6 +1386,7 @@ function irPara(secao){
   const renderizadores = {
     inicio: renderInicio,
     atletas: renderAtletas,
+    chamada: renderChamada,
     documentos: renderDocumentos,
     pagamentos: renderPagamentos,
     calendario: renderCalendario,
