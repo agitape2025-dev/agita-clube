@@ -1,0 +1,32 @@
+{
+  "name": "AGITA — Portal do Clube",
+  "short_name": "AGITA",
+  "description": "Portal do clube de Ginástica Rítmica AGITA",
+  "start_url": "/?secao=avisos",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF7F1",
+  "theme_color": "#132A52",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/icone.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icone.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icone.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
