@@ -960,6 +960,7 @@ function renderTabelaAtletas(){
       </tbody>
     </table>
   `;
+  adicionarFiltrosColunas(alvo, 'atletas');
 }
 function abrirFormAtleta(id){
   const a = id ? atletasCache.find(x=>x.id===id) : null;
@@ -1192,6 +1193,7 @@ function renderTabelaPagamentos(){
       </tbody>
     </table>
   `;
+  adicionarFiltrosColunas(alvo, 'pagamentos');
 }
 async function abrirFormPagamento(){
   let atletas = [];
@@ -1784,6 +1786,7 @@ function renderTabelaMensalidades(){
       </tbody>
     </table>
   `;
+  adicionarFiltrosColunas(alvo, 'mensalidades');
 }
 async function lancarMensalidade(){
   const atletaId = document.getElementById('mn-atleta').value;
@@ -1814,13 +1817,13 @@ async function lancarMensalidadesEmMassa(){
   renderTabelaMensalidades();
 }
 function marcarTodasMensalidades(){
-  const caixas = document.querySelectorAll('.mn-selecionar');
+  const caixas = [...document.querySelectorAll('.mn-selecionar')].filter(cx=>cx.closest('tr').style.display!=='none');
   if(caixas.length===0) return;
   const todasMarcadas = [...caixas].every(cx=>cx.checked);
   caixas.forEach(cx=>{ cx.checked = !todasMarcadas; });
 }
 async function excluirMensalidadesSelecionadas(){
-  const ids = [...document.querySelectorAll('.mn-selecionar:checked')].map(cx=>cx.dataset.id);
+  const ids = [...document.querySelectorAll('.mn-selecionar:checked')].filter(cx=>cx.closest('tr').style.display!=='none').map(cx=>cx.dataset.id);
   if(ids.length===0){ mostrarToast('Marque ao menos uma mensalidade para excluir.'); return; }
   for(const id of ids){
     try{ await api('mensalidades/'+id, {method:'DELETE'}); }catch(e){ /* segue para as próximas */ }
@@ -1844,6 +1847,67 @@ async function excluirMensalidade(id){
 }
 
 /* ---------- VALORES DE MENSALIDADE (cadastro por atleta) ---------- */
+const __filtrosColunas = {};
+function adicionarFiltrosColunas(alvo, chave){
+  // Linha de filtros por coluna (texto ou lista) sob o cabeçalho; só esconde linhas, não recria a tabela
+  if(!alvo) return;
+  const tabela = alvo.querySelector('table');
+  if(!tabela || !tabela.tHead || !tabela.tBodies[0]) return;
+  const norm = t => String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const limpar = t => String(t||'').replace(/\s*\(\d+d\)\s*$/,'').replace(/\s+/g,' ').trim();
+  const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const colunasLista = ['Setor','Categoria','Status','Tipo','Papel','Status senha','Rateado?','Centro de custo','Mês'];
+  const ths = [...tabela.tHead.rows[0].cells];
+  const linhas = [...tabela.tBodies[0].rows];
+  const estado = __filtrosColunas[chave] || (__filtrosColunas[chave] = {});
+  const estilo = 'width:100%;min-width:90px;padding:6px 8px;font-size:.85rem;font-weight:400;';
+  const celulas = ths.map((th,i)=>{
+    const nome = th.textContent.trim();
+    if(!nome) return '<th></th>';
+    const guardado = estado[i] || '';
+    if(colunasLista.includes(nome)){
+      let valores = [...new Set(linhas.map(tr=>limpar(tr.cells[i].textContent)))].filter(v=>v && v!=='—');
+      if(nome!=='Mês') valores.sort((a,b)=>a.localeCompare(b,'pt-BR'));
+      return `<th><select data-col="${i}" data-tipo="lista" style="${estilo}"><option value="">Todos</option>${valores.map(v=>`<option value="${esc(v)}"${v===guardado?' selected':''}>${esc(v)}</option>`).join('')}</select></th>`;
+    }
+    return `<th><input type="search" data-col="${i}" data-tipo="texto" placeholder="Filtrar" value="${esc(guardado)}" style="${estilo}"></th>`;
+  });
+  const linhaFiltros = document.createElement('tr');
+  linhaFiltros.innerHTML = celulas.join('');
+  tabela.tHead.appendChild(linhaFiltros);
+
+  const barra = document.createElement('div');
+  barra.style.cssText = 'display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;';
+  barra.innerHTML = `<button class="btn btn-sm btn-secundario" type="button">Limpar filtros</button><span style="color:var(--texto-suave);font-size:.9rem;"></span>`;
+  tabela.insertAdjacentElement('beforebegin', barra);
+  const contador = barra.querySelector('span');
+
+  const aplicar = () => {
+    const filtros = [...linhaFiltros.querySelectorAll('[data-col]')]
+      .map(el=>[+el.dataset.col, el.dataset.tipo, el.value]).filter(f=>f[2]);
+    let visiveis = 0;
+    linhas.forEach(r=>{
+      const ok = filtros.every(([i,tipo,v])=>{
+        const txt = r.cells[i].textContent;
+        return tipo==='lista' ? limpar(txt)===v : norm(txt).includes(norm(v));
+      });
+      r.style.display = ok ? '' : 'none';
+      if(ok) visiveis++;
+      else r.querySelectorAll('input[type=checkbox]').forEach(cx=>{ cx.checked = false; }); // linha escondida nunca fica selecionada
+    });
+    contador.textContent = visiveis + ' de ' + linhas.length;
+  };
+  linhaFiltros.querySelectorAll('[data-col]').forEach(el=>{
+    el.addEventListener(el.tagName==='SELECT' ? 'change' : 'input', ()=>{ estado[el.dataset.col] = el.value; aplicar(); });
+  });
+  barra.querySelector('button').addEventListener('click', ()=>{
+    linhaFiltros.querySelectorAll('[data-col]').forEach(el=>{ el.value = ''; });
+    Object.keys(estado).forEach(k=>delete estado[k]);
+    aplicar();
+  });
+  aplicar();
+}
+
 let valoresMensalidadeCache = [];
 async function renderFinanceiroValoresMensalidade(){
   const alvo = document.getElementById('financeiro-conteudo');
@@ -1970,6 +2034,7 @@ async function renderFinanceiroInadimplentes(){
       </table>
     </div></div>
   `;
+  adicionarFiltrosColunas(alvo, 'inadimplentes');
 }
 
 /* ---------- TAXAS E COBRANÇAS ---------- */
@@ -2026,6 +2091,7 @@ function renderTabelaTaxas(){
       </tbody>
     </table>
   `;
+  adicionarFiltrosColunas(alvo, 'taxas');
 }
 async function lancarTaxa(){
   const atletaId = document.getElementById('tx-atleta').value || null;
@@ -2103,6 +2169,7 @@ function renderTabelaDespesas(){
       </tbody>
     </table>
   `;
+  adicionarFiltrosColunas(alvo, 'despesas');
 }
 async function lancarDespesa(){
   const descricao = document.getElementById('ds-descricao').value.trim();
@@ -2209,6 +2276,7 @@ function renderTabelaUsuarios(){
       </tbody>
     </table>
   `;
+  adicionarFiltrosColunas(alvo, 'usuarios');
 }
 function abrirFormUsuario(){
   abrirModal(`
