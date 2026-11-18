@@ -1611,7 +1611,7 @@ function renderMuralPais(alvo){
   alvo.innerHTML = `
     <article class="mural-destaque" onclick="abrirAvisoAmpliado('${ultimo.id}')">
       <div class="mural-destaque-topo">
-        <span class="mural-etiqueta">Último aviso</span>
+        <span class="mural-etiqueta">${etiquetaAviso(ultimo)}</span>
         ${novo(ultimo) ? '<span class="selo-novo">Novo</span>' : ''}
         <span class="mural-data">${formatarDataHora(ultimo.criado_em)}</span>
       </div>
@@ -1625,13 +1625,13 @@ function renderMuralPais(alvo){
       </div>
     </article>
     ${resto.length ? `
-      <h3 class="mural-titulo">Avisos anteriores</h3>
+      <h3 class="mural-titulo">Outros avisos em vigor</h3>
       <div class="mural-grade">
         ${resto.map(function(a){ return `
           <div class="mural-card" onclick="abrirAvisoAmpliado('${a.id}')">
             ${novo(a) ? '<span class="selo-novo">Novo</span>' : ''}
             <img src="${a.imagem}" alt="${escaparTexto(a.titulo)}" loading="lazy">
-            <div class="info"><div class="t">${escaparTexto(a.titulo)}</div><div class="d">${formatarDataHora(a.criado_em)}</div></div>
+            <div class="info"><div class="t">${escaparTexto(a.titulo)}</div><div class="d">${validadeAviso(a) > hojeISO() ? 'Vale até ' + formatarData(validadeAviso(a)) : formatarDataHora(a.criado_em)}</div></div>
           </div>`; }).join('')}
       </div>` : ''}
   `;
@@ -1947,6 +1947,24 @@ function abrirInstalarApp(){
       <p class="rotulo" style="margin-top:12px;">Sem loja: o app instala direto pelo navegador, é leve e avisa quando sair um comunicado novo.</p>
       <div class="barra-acoes" style="justify-content:center;"><button type="button" class="btn btn-secundario btn-sm" onclick="fecharModal()">Fechar</button></div>
     </div>`);
+}
+
+
+/* ---------- validade dos avisos (só os do dia, ou até a data escolhida) ---------- */
+function dataLocalISO(iso){
+  const d = new Date(iso);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function validadeAviso(av){ return av.exibir_ate || dataLocalISO(av.criado_em); }
+function etiquetaAviso(av){
+  const ate = validadeAviso(av);
+  return ate > hojeISO() ? 'Aviso antecipado · vale até ' + formatarData(ate) : 'Aviso de hoje';
+}
+function rotuloValidadeAviso(av){
+  const ate = validadeAviso(av), hoje = hojeISO();
+  if(ate < hoje) return 'Encerrado para os pais';
+  if(ate === hoje) return 'No ar para os pais hoje';
+  return 'No ar para os pais até ' + formatarData(ate);
 }
 
 function irPara(secao){
@@ -2605,7 +2623,7 @@ async function renderGaleriaAvisos(){
   const alvo = document.getElementById('galeria-avisos');
   if(!alvo) return;
   if(avisosCache.length===0){
-    alvo.innerHTML = `<div class="vazio">Nenhum aviso publicado ainda.</div>`;
+    alvo.innerHTML = `<div class="vazio">${ehAdmin ? 'Nenhum aviso publicado ainda.' : 'Nenhum aviso por hoje. 🎉 Quando o AGITA publicar um comunicado, ele aparece aqui e você recebe uma notificação.'}</div>`;
     return;
   }
   if(!ehAdmin){ renderMuralPais(alvo); return; }
@@ -2616,6 +2634,7 @@ async function renderGaleriaAvisos(){
           <img src="${av.imagem}" alt="${av.titulo}" style="width:100%;border-radius:8px;margin-bottom:10px;display:block;">
           <div style="font-weight:600;color:var(--azul-escuro);">${av.titulo}</div>
           <div class="rotulo" style="margin-top:2px;">${formatarDataHora(av.criado_em)}</div>
+          <div class="rotulo">${rotuloValidadeAviso(av)}</div>
           <div class="barra-acoes">
             <a class="btn btn-sm btn-secundario" href="${av.imagem}" download="agita-aviso.png">Baixar</a>
             ${ehAdmin ? `<button class="btn btn-sm btn-perigo" onclick="excluirAvisoPublicado('${av.id}')">Excluir</button>` : ''}
@@ -2648,10 +2667,12 @@ function renderCamposExtraAviso(){
       <div class="campo"><label>Foto</label><input type="file" accept="image/*" onchange="lerFotoAviso(event)"></div>
     `;
   }
+  const __dataPrev = document.getElementById('av-data')?.value || '';
   alvo.innerHTML = `
     <div class="campo"><label>Título do banner</label><input type="text" id="av-titulo" value="${t.titulo}" oninput="desenharAviso()"></div>
     <div class="campo"><label>Texto complementar</label><input type="text" id="av-sub" value="${t.sub}" oninput="desenharAviso()"></div>
     ${extra}
+    <div class="campo"><label>Aviso para a data (opcional)</label><input type="date" id="av-data" min="${hojeISO()}" value="${__dataPrev}" onchange="desenharAviso()"><p class="dica-chamada">Em branco: o aviso aparece para os pais só hoje. Com uma data (ex.: dia sem aula): aparece desde já até esse dia.</p></div>
   `;
 }
 function preencherNomeAviso(){
@@ -2670,87 +2691,185 @@ function lerFotoAviso(ev){
   leitor.onload = e => { avisoFotoTemp = e.target.result; desenharAviso(); };
   leitor.readAsDataURL(arq);
 }
-function desenharAviso(){
+
+let desenhoToken = 0;
+const TEMAS_AVISO = {
+  cancelada:   { pill:'AVISO IMPORTANTE', icone:'⚠️' },
+  feriado:     { pill:'SEM AULA',         icone:'🎉' },
+  aniversario: { pill:'PARABÉNS!',        icone:'🎂' },
+  geral:       { pill:'COMUNICADO',       icone:'📢' }
+};
+function retanguloArredondado(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+function ajustarTextoAviso(ctx, txt, peso, familia, tamMax, tamMin, larguraMax, linhasMax){
+  let tam = tamMax, linhas = [];
+  for(;;){
+    ctx.font = peso + ' ' + tam + 'px ' + familia;
+    linhas = quebrarTexto(ctx, txt, larguraMax);
+    const larg = Math.max.apply(null, linhas.map(function(l){ return ctx.measureText(l).width; }).concat([0]));
+    if((linhas.length <= linhasMax && larg <= larguraMax) || tam <= tamMin) break;
+    tam -= 2;
+  }
+  return { tam: tam, linhas: linhas.slice(0, linhasMax) };
+}
+function decoracaoGinasticaAviso(ctx, W, H, tipo){
+  let seed = 7; for(let i=0;i<tipo.length;i++) seed = (seed*31 + tipo.charCodeAt(i)) >>> 0;
+  const rnd = function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed>>>15, 1|seed); t = t + Math.imul(t ^ t>>>7, 61|t) ^ t; return ((t ^ t>>>14) >>> 0) / 4294967296; };
+  const g = ctx.createLinearGradient(0,0,W,H);
+  g.addColorStop(0,'#132A52'); g.addColorStop(0.5,'#1E4C8C'); g.addColorStop(1,'#F2892B');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  ctx.save(); ctx.globalAlpha = 0.10; ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(W*0.86, H*0.14, 230, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(W*0.1, H*0.92, 170, 0, Math.PI*2); ctx.fill(); ctx.restore();
+  function fita(p, cor, larg){
+    ctx.save(); ctx.strokeStyle = cor; ctx.lineWidth = larg; ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+    ctx.beginPath(); ctx.moveTo(p[0], p[1]);
+    ctx.bezierCurveTo(p[2],p[3],p[4],p[5],p[6],p[7]);
+    ctx.bezierCurveTo(p[8],p[9],p[10],p[11],p[12],p[13]);
+    ctx.stroke(); ctx.restore();
+  }
+  fita([-20,560, 120,420, 260,700, 380,520, 520,360, 640,640], '#FFC27A', 16);
+  fita([-20,590, 130,460, 260,730, 390,560, 520,410, 650,680], '#F2892B', 7);
+  fita([560,40, 700,150, 800,-30, 930,90, 1040,200, 1220,30], '#FF7BAC', 14);
+  fita([560,62, 700,170, 800,-8, 930,112, 1040,222, 1220,52], '#FFD166', 6);
+  function arco(x, y, r, c1, c2){
+    const gg = ctx.createLinearGradient(x-r,y-r,x+r,y+r);
+    gg.addColorStop(0,c1); gg.addColorStop(1,c2);
+    ctx.save(); ctx.strokeStyle = gg; ctx.lineWidth = 16;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 3; ctx.setLineDash([8,16]);
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke(); ctx.restore();
+  }
+  arco(1110, 585, 80, '#F2892B', '#FFC27A');
+  arco(70, 70, 52, '#4CC9B0', '#FFD166');
+  const bx = 90, by = 520, br = 36;
+  const bg = ctx.createRadialGradient(bx-12, by-14, 4, bx, by, br);
+  bg.addColorStop(0,'#FFD9A8'); bg.addColorStop(1,'#E06A16');
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(bx,by,br,0,Math.PI*2); ctx.fill();
+  const cores = ['#F2892B','#FFC27A','#FF7BAC','#FFD166','#4CC9B0','#ffffff','#3E6BB0'];
+  for(let i=0;i<80;i++){
+    const x = rnd()*W, y = rnd()*H, w = 8+rnd()*12, h = (rnd()<.5) ? w : w*2.2;
+    ctx.save(); ctx.translate(x,y); ctx.rotate(rnd()*Math.PI);
+    ctx.globalAlpha = 0.85; ctx.fillStyle = cores[i%cores.length];
+    ctx.fillRect(-w/2,-h/2,w,h); ctx.restore();
+  }
+  for(let i=0;i<14;i++) estrela(ctx, rnd()*W, rnd()*H, 8+rnd()*12, 'rgba(255,255,255,.85)');
+}
+async function desenharAviso(){
   const canvas = document.getElementById('canvas-aviso');
   if(!canvas) return;
+  const token = ++desenhoToken;
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
+  try{ await document.fonts.load("800 80px 'Baloo 2'"); await document.fonts.load("700 30px 'Nunito'"); }catch(e){}
+  const ginger = await carregarGingerImg();
+  const ehAniv = avisoTipoAtual === 'aniversario';
+  const foto = ehAniv ? await carregarImagem(avisoFotoTemp) : null;
+  if(token !== desenhoToken) return;
 
-  const grad = ctx.createLinearGradient(0,0,W,H);
-  grad.addColorStop(0, '#132A52');
-  grad.addColorStop(1, '#F2892B');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0,0,W,H);
+  const tema = TEMAS_AVISO[avisoTipoAtual] || TEMAS_AVISO.geral;
+  const titulo = (document.getElementById('av-titulo')?.value || '').toUpperCase().trim();
+  let sub = (document.getElementById('av-sub')?.value || '').trim();
+  const nome = (document.getElementById('av-nome')?.value || '').trim();
+  if(ehAniv && !sub) sub = 'Toda a família AGITA deseja muita alegria! 🎉';
 
+  decoracaoGinasticaAviso(ctx, W, H, avisoTipoAtual);
+
+  const FAM_T = "'Baloo 2', sans-serif", FAM_S = "'Nunito', sans-serif";
+  const LARG = 800;
+  const t = ajustarTextoAviso(ctx, titulo || ' ', '800', FAM_T, ehAniv ? 80 : 96, 44, LARG, 2);
+  const n = ehAniv ? ajustarTextoAviso(ctx, nome, '700', FAM_T, 50, 30, LARG, 2) : { tam:0, linhas:[] };
+  const s = sub ? ajustarTextoAviso(ctx, sub, '600', FAM_S, 32, 22, LARG - 20, 3) : { tam:0, linhas:[] };
+
+  const hT = t.linhas.length * t.tam * 1.05;
+  const hN = n.linhas.length ? n.linhas.length * n.tam * 1.08 + 10 : 0;
+  const hS = s.linhas.length ? s.linhas.length * s.tam * 1.3 + 16 : 0;
+  const hPill = ehAniv ? 0 : 66;
+  const conteudo = hPill + hT + hN + hS;
+  const PAD = 38;
+  const painelH = conteudo + PAD*2;
+  let painelY;
+  if(ehAniv){ painelY = 250; } else { painelY = Math.max(95, (H - painelH)/2 - 6); }
+  const painelX = (W - 900)/2;
+
+  // painel translúcido central
   ctx.save();
-  ctx.globalAlpha = 0.10;
-  ctx.beginPath();
-  ctx.arc(W*0.86, H*0.18, 220, 0, Math.PI*2);
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  ctx.restore();
+  ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 10;
+  retanguloArredondado(ctx, painelX, painelY, 900, painelH, 34);
+  ctx.fillStyle = 'rgba(19,42,82,.42)'; ctx.fill(); ctx.restore();
+  ctx.save(); retanguloArredondado(ctx, painelX, painelY, 900, painelH, 34);
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.stroke(); ctx.restore();
 
-  ctx.font = "600 30px 'Fraunces', serif";
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.textAlign = 'left';
-  ctx.fillText('AGITA', 46, 60);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  let y = painelY + PAD;
 
-  const titulo = (document.getElementById('av-titulo')?.value || '').toUpperCase();
-  const sub = document.getElementById('av-sub')?.value || '';
-
-  if(avisoTipoAtual === 'aniversario'){
-    const nome = document.getElementById('av-nome')?.value || '';
-    const desenharResto = () => {
-      ctx.textAlign = 'left';
-      ctx.font = "700 64px 'Fraunces', serif";
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(titulo, 380, 300);
-      ctx.font = "600 40px 'Inter', sans-serif";
-      ctx.fillText(nome, 380, 365);
-      if(sub){
-        ctx.font = "400 22px 'Inter', sans-serif";
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.fillText(sub, 380, 405);
-      }
-    };
-    if(avisoFotoTemp){
-      const img = new Image();
-      img.onload = ()=>{
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(220, 337, 150, 0, Math.PI*2);
-        ctx.closePath();
-        ctx.clip();
-        ctx.drawImage(img, 70, 187, 300, 300);
-        ctx.restore();
-        ctx.beginPath();
-        ctx.arc(220, 337, 150, 0, Math.PI*2);
-        ctx.lineWidth = 8;
-        ctx.strokeStyle = '#ffffff';
-        ctx.stroke();
-        desenharResto();
-      };
-      img.src = avisoFotoTemp;
+  if(ehAniv){
+    // foto redonda centralizada sobre o painel
+    const cx = W/2, cy = 150, r = 100;
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 22; ctx.shadowOffsetY = 8;
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx,cy,r+12,0,Math.PI*2); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.strokeStyle = '#F2892B'; ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.arc(cx,cy,r+19,0,Math.PI*2); ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.clip();
+    if(foto){
+      const sc = Math.max(2*r/foto.width, 2*r/foto.height);
+      ctx.drawImage(foto, cx - foto.width*sc/2, cy - foto.height*sc/2, foto.width*sc, foto.height*sc);
     } else {
-      ctx.beginPath();
-      ctx.arc(220, 337, 150, 0, Math.PI*2);
-      ctx.fillStyle = 'rgba(255,255,255,0.15)';
-      ctx.fill();
-      ctx.strokeStyle = '#fff'; ctx.lineWidth=8; ctx.stroke();
-      desenharResto();
+      const fg = ctx.createLinearGradient(cx-r,cy-r,cx+r,cy+r);
+      fg.addColorStop(0,'#FFC27A'); fg.addColorStop(1,'#F2892B');
+      ctx.fillStyle = fg; ctx.fillRect(cx-r,cy-r,2*r,2*r);
+      ctx.fillStyle = '#fff'; ctx.font = "800 120px 'Baloo 2', sans-serif"; ctx.textBaseline = 'middle';
+      ctx.fillText(nome ? nome.charAt(0).toUpperCase() : '🎂', cx, cy+6);
+      ctx.textBaseline = 'alphabetic';
     }
+    ctx.restore();
   } else {
-    ctx.textAlign = 'center';
-    ctx.font = "700 76px 'Fraunces', serif";
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(titulo, W/2, H/2 - 10);
-    if(sub){
-      ctx.font = "400 26px 'Inter', sans-serif";
-      ctx.fillStyle = 'rgba(255,255,255,0.88)';
-      ctx.fillText(sub, W/2, H/2 + 42);
-    }
+    // etiqueta (pill) centralizada
+    const dataAv = document.getElementById('av-data')?.value || '';
+    const rot = tema.icone + '  ' + tema.pill + (dataAv ? ' · ' + formatarData(dataAv).slice(0,5) : '');
+    ctx.font = "800 26px 'Baloo 2', sans-serif";
+    const w = ctx.measureText(rot).width + 56;
+    ctx.save(); retanguloArredondado(ctx, (W-w)/2, y, w, 48, 24);
+    ctx.fillStyle = '#F2892B'; ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3; ctx.fill(); ctx.restore();
+    ctx.fillStyle = '#fff'; ctx.fillText(rot, W/2, y + 33);
+    y += hPill;
+  }
+
+  // título
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+  ctx.fillStyle = '#fff'; ctx.font = "800 " + t.tam + "px " + FAM_T;
+  t.linhas.forEach(function(l, i){ ctx.fillText(l, W/2, y + t.tam*0.86 + i*t.tam*1.05); });
+  ctx.restore();
+  y += hT;
+  // nome (aniversário)
+  if(n.linhas.length){
+    ctx.fillStyle = '#FFD166'; ctx.font = "700 " + n.tam + "px " + FAM_T;
+    n.linhas.forEach(function(l, i){ ctx.fillText(l, W/2, y + n.tam*0.9 + i*n.tam*1.08); });
+    y += hN;
+  }
+  // texto complementar
+  if(s.linhas.length){
+    ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.font = "600 " + s.tam + "px " + FAM_S;
+    s.linhas.forEach(function(l, i){ ctx.fillText(l, W/2, y + 12 + s.tam + i*s.tam*1.3); });
+  }
+  // rodapé e mascote
+  ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.font = "700 22px 'Nunito', sans-serif";
+  ctx.fillText('AGITA · Ginástica Rítmica', W/2, H - 28);
+  if(ginger){
+    const gh = 290, gw = ginger.width*gh/ginger.height;
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 8;
+    ctx.drawImage(ginger, W - gw - 18, H - gh - 4, gw, gh); ctx.restore();
   }
 }
+
 function baixarAviso(){
   const canvas = document.getElementById('canvas-aviso');
   const link = document.createElement('a');
@@ -2765,7 +2884,8 @@ async function publicarAviso(){
     await api('avisos', {method:'POST', corpo:{
       tipo: avisoTipoAtual,
       titulo,
-      imagem: canvas.toDataURL('image/png')
+      exibir_ate: document.getElementById('av-data')?.value || null,
+      imagem: canvas.toDataURL('image/jpeg', 0.9)
     }});
   }catch(e){ return; }
   await renderGaleriaAvisos();
