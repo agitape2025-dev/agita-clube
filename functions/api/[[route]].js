@@ -464,17 +464,44 @@ async function tratarPush(request, env, usuario, rota, metodo) {
   return erro('Rota inválida.', 404);
 }
 
+// Avisos: os pais só veem os avisos do dia (ou até a data escolhida pelo clube, ex.: dia sem aula).
+let colunaExibirAteGarantida = false;
+async function garantirColunaExibirAte(env) {
+  if (colunaExibirAteGarantida) return;
+  const { results } = await env.DB.prepare(`SELECT name FROM pragma_table_info('avisos_publicados')`).all();
+  if (!results.some(r => r.name === 'exibir_ate')) {
+    try { await env.DB.prepare(`ALTER TABLE avisos_publicados ADD COLUMN exibir_ate TEXT`).run(); } catch (e) {}
+  }
+  colunaExibirAteGarantida = true;
+}
+function hojeRecife() {
+  return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+}
+// avisos antigos (sem data) valem só no dia em que foram criados (fuso de Recife)
+const SQL_AVISO_VISIVEL = `(exibir_ate >= ? OR (exibir_ate IS NULL AND substr(datetime(criado_em, '-3 hours'), 1, 10) = ?))`;
+
 async function tratarAvisos(request, env, usuario, rota, metodo) {
+  await garantirColunaExibirAte(env);
   const id = rota[1];
+  const gerencia = !exigirGerenciar(usuario);
+  const hoje = hojeRecife();
 
   if (metodo === 'GET' && id === 'contagem') {
     const desde = new Date(parseInt(new URL(request.url).searchParams.get('desde'), 10) || 0).toISOString();
-    const { results: n } = await env.DB.prepare(`SELECT COUNT(*) AS n FROM avisos_publicados WHERE criado_em > ?`).bind(desde).all();
-    const ultimo = await env.DB.prepare(`SELECT titulo, criado_em FROM avisos_publicados ORDER BY criado_em DESC LIMIT 1`).first();
+    let n, ultimo;
+    if (gerencia) {
+      n = (await env.DB.prepare(`SELECT COUNT(*) AS n FROM avisos_publicados WHERE criado_em > ?`).bind(desde).all()).results;
+      ultimo = await env.DB.prepare(`SELECT titulo, criado_em FROM avisos_publicados ORDER BY criado_em DESC LIMIT 1`).first();
+    } else {
+      n = (await env.DB.prepare(`SELECT COUNT(*) AS n FROM avisos_publicados WHERE criado_em > ? AND ` + SQL_AVISO_VISIVEL).bind(desde, hoje, hoje).all()).results;
+      ultimo = await env.DB.prepare(`SELECT titulo, criado_em FROM avisos_publicados WHERE ` + SQL_AVISO_VISIVEL + ` ORDER BY criado_em DESC LIMIT 1`).bind(hoje, hoje).first();
+    }
     return json({ novos: n[0]?.n || 0, ultimo: ultimo || null });
   }
   if (metodo === 'GET' && !id) {
-    const { results } = await env.DB.prepare(`SELECT * FROM avisos_publicados ORDER BY criado_em DESC`).all();
+    const { results } = gerencia
+      ? await env.DB.prepare(`SELECT * FROM avisos_publicados ORDER BY criado_em DESC`).all()
+      : await env.DB.prepare(`SELECT * FROM avisos_publicados WHERE ` + SQL_AVISO_VISIVEL + ` ORDER BY criado_em DESC`).bind(hoje, hoje).all();
     return json({ avisos: results });
   }
   if (metodo === 'POST' && !id) {
@@ -482,10 +509,12 @@ async function tratarAvisos(request, env, usuario, rota, metodo) {
     if (bloqueado) return bloqueado;
     const c = await request.json();
     if (!c.imagem) return erro('Banner ausente.');
+    let ate = /^\d{4}-\d{2}-\d{2}$/.test(c.exibir_ate || '') ? c.exibir_ate : hoje;
+    if (ate < hoje) ate = hoje;
     const novoId = gerarId('av');
     const agora = new Date().toISOString();
-    await env.DB.prepare(`INSERT INTO avisos_publicados (id, tipo, titulo, imagem, criado_em) VALUES (?,?,?,?,?)`)
-      .bind(novoId, c.tipo || 'geral', c.titulo || 'Aviso', c.imagem, agora).run();
+    await env.DB.prepare(`INSERT INTO avisos_publicados (id, tipo, titulo, imagem, criado_em, exibir_ate) VALUES (?,?,?,?,?,?)`)
+      .bind(novoId, c.tipo || 'geral', c.titulo || 'Aviso', c.imagem, agora, ate).run();
     return json({ id: novoId });
   }
   if (metodo === 'DELETE' && id) {
