@@ -453,6 +453,140 @@
 .ginger-vazia::after{content:'';position:absolute;left:8%;right:8%;bottom:-8px;height:16px;background:radial-gradient(closest-side,rgba(19,42,82,.28),transparent);z-index:-1}
 body[data-secao="avisos"].sem-avisos-pais .ginger-guia{display:none}
 
+
+/* ===== Reunião da diretoria ===== */
+:root{--gloria:url("data:image/webp;base64,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")}
+body[data-secao="reuniao"] .ginger-guia{display:none !important}
+.reu{position:relative;background:linear-gradient(160deg,#132A52 0%,#1E4C8C 65%,#3E6BB0 100%);color:#fff;border-radius:22px;padding:18px 20px 250px;min-height:calc(100vh - 150px);overflow:hidden;box-shadow:var(--sombra)}
+.reu:fullscreen{border-radius:0;padding:24px 32px 260px;overflow:auto}
+.reu *{box-sizing:border-box}
+.reu-topo{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.reu-ttl{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:1.15rem}
+.reu-ttl small{opacity:.6;font-weight:600;margin-left:8px}
+.reu-ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.reu-chip{background:rgba(255,255,255,.14);border-radius:99px;padding:6px 12px;font-size:.82rem;font-weight:700}
+.reu-chip.vivo{background:rgba(242,137,43,.9)}
+.reu-btn{border:0;border-radius:99px;padding:8px 16px;font:700 .9rem 'Nunito',sans-serif;background:rgba(255,255,255,.16);color:#fff;cursor:pointer;transition:transform .15s,background .2s}
+.reu-btn:hover{background:rgba(255,255,255,.28);transform:translateY(-1px)}
+.reu-btn.on,.reu-btn.primario{background:var(--laranja);color:#fff}
+.reu-pontos{display:flex;gap:6px;margin:12px 0 18px}
+.reu-pontos button{flex:1;height:8px;border:0;border-radius:99px;background:rgba(255,255,255,.2);cursor:pointer;padding:0;transition:background .3s,transform .2s}
+.reu-pontos button.ok{background:var(--laranja-claro)}
+.reu-pontos button.at{background:var(--laranja);transform:scaleY(1.6)}
+.reu-slide.entrar{animation:reuEntra .6s cubic-bezier(.2,.9,.3,1.1)}
+@keyframes reuEntra{from{opacity:0;transform:translateX(40px) scale(.98)}to{opacity:1;transform:none}}
+.reu-carregando{padding:60px;text-align:center;opacity:.8}
+.reu-abertura{display:grid;grid-template-columns:1.1fr 1fr;gap:26px;align-items:start}
+.reu-abre-txt small{opacity:.7;text-transform:capitalize}
+.reu-abre-txt h1{font-family:'Baloo 2',sans-serif;font-size:clamp(2rem,5vw,3.4rem);line-height:1.05;margin:6px 0 16px}
+.reu-stats{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.reu-stats div{background:rgba(255,255,255,.12);border-radius:16px;padding:10px 16px;min-width:96px;text-align:center}
+.reu-stats b{display:block;font-family:'Baloo 2',sans-serif;font-size:2rem;color:var(--laranja-claro);line-height:1}
+.reu-stats span{font-size:.78rem;opacity:.85}
+.reu-agenda{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.reu-agenda li{background:rgba(255,255,255,.12);border-radius:12px;padding:9px 14px;font-weight:700;display:flex;gap:10px;align-items:center}
+.reu-agenda li span{background:var(--laranja);width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:.85rem}
+.reu-agenda li.oculto{opacity:0;height:0;padding:0;margin:0;overflow:hidden}
+.reu-agenda li.novo{animation:reuPop .6s cubic-bezier(.2,.9,.3,1.4)}
+@keyframes reuPop{from{opacity:0;transform:translateY(18px) scale(.9)}to{opacity:1;transform:none}}
+.reu-enquete{grid-column:1/-1;margin-top:18px;background:rgba(255,255,255,.1);border:2px dashed rgba(255,194,122,.7);border-radius:20px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.reu-enquete.vencedora{justify-content:center;font-size:1.3rem;font-family:'Baloo 2',sans-serif}
+.reu-enq-txt{display:grid;gap:2px;font-size:1.1rem}
+.reu-enq-txt span{font-size:.9rem;opacity:.85}
+.reu-vs{display:flex;align-items:center;gap:14px}
+.reu-vs strong{font-family:'Baloo 2',sans-serif;font-size:1.6rem;color:var(--laranja-claro);animation:reuBalanca 1.6s ease-in-out infinite}
+.reu-vs-c{display:grid;justify-items:center;gap:2px}
+.reu-vs-c i{display:block;width:74px;height:96px;border-radius:14px;border:3px solid #fff;background-size:cover;background-position:center top;animation:gingerRespira 3s ease-in-out infinite}
+.reu-vs-c i.a{background-image:var(--ginger);background-size:contain;background-repeat:no-repeat;background-position:center bottom;background-color:rgba(255,255,255,.9)}
+.reu-vs-c i.b{background-image:var(--gloria)}
+.reu-vs-c em{font-style:normal;font-weight:800;font-size:.85rem}
+.reu-grafico{background:rgba(255,255,255,.1);border-radius:20px;padding:16px 18px}
+.reu-grafico h3,.reu-lista h3{margin:0 0 10px;font-family:'Baloo 2',sans-serif}
+.reu-grafico p{margin:10px 0 0;font-size:.8rem;opacity:.75}
+.reu-barras{display:flex;align-items:flex-end;gap:10px;height:200px}
+.reu-barra{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%}
+.reu-coluna{flex:1;width:100%;display:flex;align-items:flex-end}
+.reu-coluna i{display:block;width:100%;height:0;background:rgba(255,255,255,.28);border-radius:10px 10px 4px 4px;overflow:hidden;position:relative;transition:height 1.1s cubic-bezier(.2,.9,.3,1.2)}
+.reu-coluna i b{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(180deg,var(--laranja-claro),var(--laranja));transition:height 1.3s .4s cubic-bezier(.2,.9,.3,1.1)}
+.reu-barra span{font-size:1.2rem}.reu-barra em{font-style:normal;font-size:.8rem;font-weight:800;opacity:.9}
+.reu-cab{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.reu-ico{font-size:3rem;animation:gingerRespira 2.6s ease-in-out infinite}
+.reu-cab-txt{flex:1;min-width:200px}
+.reu-cab-txt small{opacity:.7;font-weight:700}
+.reu-cab-txt h2{margin:0;font-family:'Baloo 2',sans-serif;font-size:clamp(1.6rem,4vw,2.6rem);line-height:1.05}
+.reu-anel{position:relative;width:92px;height:92px;flex:none}
+.reu-anel svg{width:100%;height:100%}
+.reu-anel .bg{fill:none;stroke:rgba(255,255,255,.2);stroke-width:10}
+.reu-anel .val{fill:none;stroke:var(--laranja);stroke-width:10;stroke-linecap:round;stroke-dasharray:326.7;stroke-dashoffset:326.7;transition:stroke-dashoffset 1.2s cubic-bezier(.2,.9,.3,1)}
+.reu-anel strong{position:absolute;inset:0;display:grid;place-items:center;font-family:'Baloo 2',sans-serif;font-size:1.25rem}
+.reu-planta-caixa{width:96px;height:92px;display:flex;align-items:flex-end;justify-content:center;flex:none}
+.reu-planta{font-size:34px;line-height:1;transition:font-size 1.3s cubic-bezier(.2,.9,.3,1.3);transform-origin:bottom;animation:reuBalanca 3.4s ease-in-out infinite}
+@keyframes reuBalanca{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+.reu-subs{display:grid;gap:12px}
+.reu-sub{background:rgba(255,255,255,.96);color:var(--texto);border-radius:16px;padding:14px 16px;border-left:8px solid #B7C2D0;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.reu-sub.st-debate{border-left-color:var(--laranja)}
+.reu-sub.st-decidido{border-left-color:var(--sucesso);background:#F1FAF4}
+.reu-sub.fraco{opacity:.55}
+.reu-sub.novo,.reu-papel.novo{animation:reuPop .6s cubic-bezier(.2,.9,.3,1.4)}
+.reu-sub-topo{display:flex;align-items:center;gap:12px}
+.reu-num{background:var(--azul);color:#fff;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:800;flex:none}
+.reu-txt{flex:1;font-family:'Baloo 2',sans-serif;font-weight:700;font-size:clamp(1.1rem,2.6vw,1.6rem);line-height:1.15}
+.reu-st{border:0;border-radius:99px;padding:6px 12px;font:800 .82rem 'Nunito',sans-serif;background:#EEF1F5;color:var(--azul-escuro);cursor:pointer;white-space:nowrap}
+.reu-st.fixo{cursor:default}
+.reu-sub.st-decidido .reu-st{background:#D5F0DD;color:#1F6B3B}
+.reu-sub.st-debate .reu-st{background:#FFE7CC;color:#A4500C}
+.reu-campos{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:10px}
+.reu-dec{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-weight:700;color:var(--azul-escuro)}
+.reu-in{width:100%;border:1.5px solid var(--linha);border-radius:10px;padding:8px 10px;font:600 .95rem 'Nunito',sans-serif;background:#fff;color:var(--texto)}
+.reu-in:focus{outline:none;border-color:var(--laranja);box-shadow:0 0 0 3px rgba(242,137,43,.2)}
+.reu-txt-in{font-size:1.1rem}
+.reu-tit-in{font-size:1.6rem;font-family:'Baloo 2',sans-serif;font-weight:800}
+.reu-x{border:0;background:#fde8e4;color:var(--erro);width:30px;height:30px;border-radius:50%;font-size:1.2rem;cursor:pointer;flex:none}
+.reu-add{border:2px dashed rgba(255,255,255,.5);background:transparent;color:#fff;border-radius:14px;padding:10px;font:800 .95rem 'Nunito',sans-serif;cursor:pointer;margin-top:8px}
+.reu-add:hover{background:rgba(255,255,255,.12)}
+.reu-nota{margin-top:14px;min-height:70px;resize:vertical}
+.reu-nota-ler{margin-top:14px;background:rgba(255,255,255,.12);border-radius:12px;padding:12px 14px}
+.reu-dica{text-align:center;opacity:.85;padding:22px 10px;font-weight:700}
+.reu kbd{background:rgba(255,255,255,.22);border-radius:6px;padding:2px 7px;font:700 .85em 'Nunito',sans-serif}
+.reu-cartoes{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.reu-papel{display:flex;gap:12px;align-items:center;background:rgba(255,255,255,.96);color:var(--texto);border-radius:16px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.reu-av{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--laranja),var(--laranja-forte));color:#fff;display:grid;place-items:center;font:800 1.5rem 'Baloo 2',sans-serif;flex:none}
+.reu-papel-txt{flex:1;display:grid;gap:6px;position:relative}
+.reu-papel-txt b{font-family:'Baloo 2',sans-serif;font-size:1.3rem;line-height:1}
+.reu-papel-txt span{color:var(--texto-suave);font-weight:700}
+.reu-papel-txt .reu-x{position:absolute;right:-4px;top:-8px;width:24px;height:24px;font-size:1rem}
+.reu-resumo-grade{display:grid;grid-template-columns:1fr 1.2fr;gap:18px}
+.reu-lista{background:rgba(255,255,255,.1);border-radius:20px;padding:16px 18px;max-height:420px;overflow:auto}
+.reu-lista ul{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:8px}
+.reu-lista li{background:rgba(255,255,255,.12);border-radius:12px;padding:8px 12px;display:grid;gap:2px}
+.reu-lista li span{font-size:.88rem;opacity:.9}
+.reu-nav{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 20px;background:linear-gradient(0deg,rgba(19,42,82,.85),transparent);z-index:6}
+.reu-hint{opacity:.7;font-size:.82rem;text-align:center}
+.reu-salvo{position:absolute;right:20px;top:64px;background:var(--sucesso);color:#fff;border-radius:99px;padding:4px 12px;font-size:.78rem;font-weight:800;opacity:0;transition:opacity .3s}
+.reu-salvo.ver{opacity:1}
+.reu-mascotes{position:absolute;right:14px;bottom:64px;display:flex;align-items:flex-end;gap:14px;z-index:5;pointer-events:none}
+.reu-ginger{position:relative;width:120px;height:197px}
+.reu-ginger .g-img{width:100%;height:100%;background:var(--ginger) no-repeat center bottom/contain;transform-origin:50% 100%;animation:gingerRespira 3s ease-in-out infinite}
+.reu-gloria{position:relative;width:104px;display:grid;justify-items:center;gap:4px;transform-origin:50% 100%;animation:gingerRespira 3.4s ease-in-out infinite}
+.reu-gloria.pulo{animation:gingerPulo .85s cubic-bezier(.2,.9,.3,1.4)}
+.reu-foto{width:104px;height:142px;border-radius:18px;border:4px solid #fff;background:var(--gloria) center/cover;box-shadow:0 8px 22px rgba(0,0,0,.3)}
+.reu-gloria em{font-style:normal;font:800 .8rem 'Nunito',sans-serif;background:rgba(0,0,0,.4);border-radius:99px;padding:2px 10px}
+.reu-bal{position:absolute;right:0;bottom:calc(100% + 4px);width:max-content;max-width:210px;background:#fff;color:var(--azul-escuro);font-weight:800;font-size:.92rem;border-radius:16px;padding:10px 14px;box-shadow:0 8px 22px rgba(0,0,0,.25);opacity:0;transform:translateY(8px) scale(.9);transform-origin:bottom right;transition:all .3s cubic-bezier(.2,.9,.3,1.3);z-index:7}
+.reu-ginger .reu-bal{bottom:calc(100% - 28px)}
+.reu-ginger.fala .reu-bal,.reu-gloria.fala .reu-bal{opacity:1;transform:none}
+.sem-trans *{transition:none !important}
+@media(max-width:820px){
+  .reu{padding:14px 12px 200px;border-radius:16px}
+  .reu-abertura,.reu-resumo-grade{grid-template-columns:1fr}
+  .reu-campos{grid-template-columns:1fr}
+  .reu-ginger{width:84px;height:138px}
+  .reu-gloria{width:72px}.reu-foto{width:72px;height:98px}
+  .reu-bal{max-width:160px;font-size:.8rem}
+  .reu-hint{display:none}
+  .reu-anel{width:72px;height:72px}.reu-planta-caixa{width:70px}
+  .reu-vs-c i{width:60px;height:80px}
+}
+
 /* ===== Visual ginástica + Ginger ===== */
 
   /* =====================================================================
@@ -1124,6 +1258,7 @@ const ITENS_MENU = [
   {id:'pagamentos', rotulo:'Pagamentos', somenteEquipe:true},
   {id:'calendario', rotulo:'Calendário'},
   {id:'avisos', rotulo:'Avisos'},
+  {id:'reuniao', rotulo:'Reunião', somenteDiretoria:true},
   {id:'financeiro', rotulo:'Financeiro', somenteFinanceiro:true},
   {id:'usuarios', rotulo:'Usuários', somenteAdmin:true},
 ];
@@ -1135,6 +1270,7 @@ function montarMenu(){
     if(item.somenteAdmin && !ehAdminEquivalente()) return;
     if(item.somenteEquipe && !ehEquipe()) return;
     if(item.somenteFinanceiro && !podeVerFinanceiro()) return;
+    if(item.somenteDiretoria && !podeVerReuniao()) return;
     const b1 = document.createElement('button');
     b1.textContent = item.rotulo; b1.dataset.secao = item.id;
     b1.onclick = ()=>irPara(item.id);
@@ -2001,6 +2137,410 @@ function rotuloValidadeAviso(av){
 function rotuloPublico(p){
   return {todos:'Todos', pais:'Só os pais (diretoria e adm também veem)', interno:'Interno (diretoria e técnicas)', diretoria:'Só diretoria'}[p || 'todos'] || 'Todos';
 }
+/* ================================================================
+   REUNIÃO DA DIRETORIA (pauta interativa ao vivo)
+   ================================================================ */
+// Enquete da mascote: enquanto for null, aparecem Ginger (raposa) e Glória (galinha) juntas.
+// Depois do resultado, troque para 'ginger' ou 'gloria' e só a vencedora aparece na reunião.
+const MASCOTE_VENCEDORA = null;
+let reuniao = null, reuniaoLocal = {s:0,r:0}, reuniaoSeguindo = true, reuniaoEdicao = false;
+let reuniaoTimer = null, reuniaoSalvarT = null, reuniaoPosT = null, reuniaoPollando = false, reuniaoPosEnviando = false;
+let reuniaoUltimo = {s:-1,r:0}, reuniaoGTimer = null, reuniaoPendente = false;
+const REU_ST = {pendente:['⚪','Pendente'], debate:['💬','Em debate'], decidido:['✅','Decidido']};
+const REU_FRASES = [
+  'Bem-vindos à reunião da diretoria! Vamos começar? 🦊',
+  'Vai ser uma festa linda! 🎉', 'Comunicação clara, famílias felizes! 📣', '2027 vem com séries novas! 🏅',
+  'Corpo forte e ballet gracioso! 🤸', 'Parcerias fazem o clube crescer! 🌱', 'Vamos olhar a turma da manhã com carinho ☀️',
+  'A equipe é o coração do AGITA! 💛'
+];
+const REU_REACOES = ['Boa! Vamos debater 💬', 'O que vocês acham? 🤔', 'Anotado! ✍️', 'Próximo ponto! 👀', 'Opiniões, pessoal! 🗣️'];
+const REU_REACOES_G = ['Cocoricó! Boa ideia! 🐔', 'Eu também quero opinar! 🐔', 'Time AGITA! 💪', 'Anotado, anotado! ✍️🐔', 'Isso vai dar certo! 🐔'];
+function podeVerReuniao(){ return !!usuarioLogado && (usuarioLogado.papel==='admin' || usuarioLogado.papel==='diretoria'); }
+function reuAtivos(){ return MASCOTE_VENCEDORA==='gloria' ? ['gloria'] : MASCOTE_VENCEDORA==='ginger' ? ['ginger'] : ['ginger','gloria']; }
+function reuEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function reuAchar(id){ for(const it of reuniao.dados.itens){ const x = it.subitens.find(function(s){return s.id===id;}); if(x) return x; } return null; }
+function reuAcharItem(id){ return reuniao.dados.itens.find(function(i){return i.id===id;}); }
+function reuPct(it){ const t = it.subitens.length; return t ? it.subitens.filter(function(x){return x.status==='decidido';}).length / t : 0; }
+function reuTotais(){ let t=0, dec=0; reuniao.dados.itens.forEach(function(i){ i.subitens.forEach(function(x){ t++; if(x.status==='decidido') dec++; }); }); return {t:t, dec:dec}; }
+function reuMaxR(s){
+  const d = reuniao.dados, n = d.itens.length;
+  if(s===0) return n;
+  if(s<=n) return d.itens[s-1].subitens.length;
+  if(s===n+1) return d.papeis.length;
+  return 0;
+}
+function reuAjustarPos(){
+  const n = reuniao.dados.itens.length;
+  reuniaoLocal.s = Math.min(Math.max(0, reuniaoLocal.s), n+2);
+  reuniaoLocal.r = Math.min(Math.max(0, reuniaoLocal.r), reuMaxR(reuniaoLocal.s));
+}
+
+/* ---------- Mascotes ---------- */
+function reuGingerFala(txt, festa, quem){
+  const ativos = reuAtivos();
+  if(!quem || ativos.indexOf(quem) < 0) quem = ativos[Math.floor(Math.random()*ativos.length)];
+  ['reu-ginger','reu-gloria'].forEach(function(id){ const o = document.getElementById(id); if(o){ o.classList.remove('fala'); } });
+  const g = document.getElementById(quem==='gloria' ? 'reu-gloria' : 'reu-ginger');
+  const b = g && g.querySelector('.reu-bal');
+  if(!g || !b) return;
+  b.textContent = txt; g.classList.add('fala');
+  g.classList.remove('pulo'); void g.offsetWidth; g.classList.add('pulo');
+  clearTimeout(reuniaoGTimer);
+  reuniaoGTimer = setTimeout(function(){ g.classList.remove('fala'); g.classList.remove('pulo'); }, 4200);
+  if(festa && window.confeteBurst){
+    const r = g.getBoundingClientRect();
+    window.confeteBurst(r.left + r.width/2, r.top + 40, 40, 'cima');
+  }
+}
+function reuReacao(sAnt, rAnt){
+  const p = reuniaoLocal, n = reuniao.dados.itens.length, ativos = reuAtivos();
+  if(p.s !== sAnt){
+    let f = REU_FRASES[p.s] || null;
+    if(p.s === n+1) f = 'Cada um com seu papel: time campeão! 🏆';
+    else if(p.s === n+2) f = 'Quanta coisa resolvida! 🏆';
+    reuGingerFala(f || 'Vamos lá! 🦊', p.s === n+2, ativos[0]);
+    if(p.s === 0 && ativos.length > 1){
+      setTimeout(function(){ if(reuniaoLocal.s === 0) reuGingerFala('Será que a mascote sou eu? 🐔', false, 'gloria'); }, 2800);
+    } else if(ativos.length > 1 && Math.random() < 0.5){
+      setTimeout(function(){ if(reuniaoLocal.s === p.s) reuGingerFala(REU_REACOES_G[Math.floor(Math.random()*REU_REACOES_G.length)], false, 'gloria'); }, 2600);
+    }
+  } else if(p.r > rAnt){
+    const quem = ativos[Math.floor(Math.random()*ativos.length)];
+    const lista = quem==='gloria' ? REU_REACOES_G : REU_REACOES;
+    reuGingerFala(lista[Math.floor(Math.random()*lista.length)], false, quem);
+  }
+}
+
+/* ---------- Visuais ---------- */
+function reuAnel(p){
+  return '<div class="reu-anel"><svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="52"/><circle class="val" data-p="'+p+'" cx="60" cy="60" r="52" transform="rotate(-90 60 60)"/></svg><strong>'+Math.round(p*100)+'%</strong></div>';
+}
+function reuPlanta(p){
+  const emoji = p>=1 ? '🌳' : p>=0.5 ? '🌿' : p>0 ? '🌱' : '🌰';
+  return '<div class="reu-planta-caixa"><div class="reu-planta" data-tam="'+Math.round(34+p*58)+'">'+emoji+'</div></div>';
+}
+function reuBarras(modo){
+  const its = reuniao.dados.itens;
+  const max = Math.max(1, Math.max.apply(null, its.map(function(i){return i.subitens.length;})));
+  return '<div class="reu-barras">' + its.map(function(it){
+    const p = reuPct(it);
+    const h = modo==='pct' ? Math.max(6, p*100) : (it.subitens.length/max*100);
+    const f = modo==='pct' ? 100 : Math.round(p*100);
+    return '<div class="reu-barra" title="'+reuEsc(it.titulo)+'"><div class="reu-coluna"><i data-h="'+h+'" data-f="'+f+'"><b></b></i></div><span>'+reuEsc(it.icone)+'</span><em>'+(modo==='pct' ? Math.round(p*100)+'%' : it.subitens.length)+'</em></div>';
+  }).join('') + '</div>';
+}
+function reuAnimar(animado){
+  const palco = document.getElementById('reu-palco');
+  if(!palco) return;
+  palco.classList.toggle('sem-trans', !animado);
+  setTimeout(function(){
+    palco.querySelectorAll('.reu-coluna i').forEach(function(i){ i.style.height = i.dataset.h+'%'; const b = i.firstElementChild; if(b) b.style.height = i.dataset.f+'%'; });
+    palco.querySelectorAll('.reu-anel .val').forEach(function(c){ c.style.strokeDashoffset = (326.7*(1-parseFloat(c.dataset.p))).toFixed(1); });
+    palco.querySelectorAll('.reu-planta').forEach(function(p){ p.style.fontSize = p.dataset.tam+'px'; });
+    palco.querySelectorAll('[data-alvo]').forEach(function(el){
+      const alvo = +el.dataset.alvo;
+      if(!animado){ el.textContent = alvo; return; }
+      const t0 = performance.now();
+      (function passo(t){ const k = Math.min(1, (t-t0)/900); el.textContent = Math.round(alvo*(1-Math.pow(1-k,3))); if(k<1) requestAnimationFrame(passo); })(t0);
+    });
+  }, 60);
+}
+
+/* ---------- Slides ---------- */
+function reuHtmlEnquete(){
+  if(MASCOTE_VENCEDORA){
+    const nome = MASCOTE_VENCEDORA==='gloria' ? 'Glória, a galinha' : 'Ginger, a raposa';
+    return '<div class="reu-enquete vencedora">👑 <b>Nossa mascote oficial:</b> '+nome+'</div>';
+  }
+  return '<div class="reu-enquete"><div class="reu-enq-txt">🗳️ <b>Enquete da mascote</b><span>Quem será a mascote oficial do AGITA? O resultado sai amanhã!</span></div>'
+    + '<div class="reu-vs"><div class="reu-vs-c"><i class="a"></i><em>Ginger</em></div><strong>VS</strong><div class="reu-vs-c"><i class="b"></i><em>Glória</em></div></div></div>';
+}
+function reuHtmlAbertura(r){
+  const d = reuniao.dados, tot = reuTotais();
+  const data = new Date().toLocaleDateString('pt-BR', {day:'numeric', month:'long', year:'numeric'});
+  const lista = d.itens.map(function(it, k){
+    return '<li class="'+(k<r ? 'vis'+(k===r-1 && reuniaoUltimo.novo ? ' novo' : '') : 'oculto')+'"><span>'+(k+1)+'</span>'+reuEsc(it.icone)+' '+reuEsc(it.titulo)+'</li>';
+  }).join('');
+  return '<div class="reu-abertura"><div class="reu-abre-txt"><small>'+data+'</small><h1>'+reuEsc(d.titulo)+'</h1>'
+    + '<div class="reu-stats"><div><b data-alvo="'+d.itens.length+'">0</b><span>itens de pauta</span></div><div><b data-alvo="'+tot.t+'">0</b><span>tópicos</span></div><div><b data-alvo="'+tot.dec+'">0</b><span>decididos</span></div></div>'
+    + '<ol class="reu-agenda">'+lista+'</ol></div>'
+    + '<div class="reu-grafico"><h3>🌱 Crescimento da pauta</h3>'+reuBarras('qtd')+'<p>Cada barra é um item; a parte laranja são os tópicos já decididos.</p></div></div>'
+    + reuHtmlEnquete();
+}
+function reuCartaoSub(it, x, k, r, ed){
+  const visivel = k < r || (ed && reuniaoEdicao);
+  if(!visivel) return '';
+  const novo = (k === r-1 && reuniaoUltimo.novo);
+  const st = REU_ST[x.status] || REU_ST.pendente;
+  let h = '<div class="reu-sub st-'+x.status+(novo ? ' novo' : '')+(k>=r ? ' fraco' : '')+'" data-id="'+x.id+'">';
+  h += '<div class="reu-sub-topo"><span class="reu-num">'+(k+1)+'</span>';
+  if(ed && reuniaoEdicao) h += '<input class="reu-in reu-txt-in" value="'+reuEsc(x.texto)+'" oninput="reuCampo(\''+x.id+'\',\'texto\',this.value)">';
+  else h += '<span class="reu-txt">'+reuEsc(x.texto)+'</span>';
+  h += ed ? '<button type="button" class="reu-st" onclick="reuCiclar(\''+x.id+'\')">'+st[0]+' '+st[1]+'</button>' : '<span class="reu-st fixo">'+st[0]+' '+st[1]+'</span>';
+  if(ed && reuniaoEdicao) h += '<button type="button" class="reu-x" title="Remover" onclick="reuDel(\''+x.id+'\')">×</button>';
+  h += '</div>';
+  if(ed){
+    h += '<div class="reu-campos"><input class="reu-in" placeholder="👤 Responsável" value="'+reuEsc(x.responsavel)+'" oninput="reuCampo(\''+x.id+'\',\'responsavel\',this.value)">'
+      + '<input class="reu-in" placeholder="✍️ Decisão / encaminhamento" value="'+reuEsc(x.decisao)+'" oninput="reuCampo(\''+x.id+'\',\'decisao\',this.value)"></div>';
+  } else if(x.responsavel || x.decisao){
+    h += '<div class="reu-dec">'+(x.responsavel ? '<span>👤 '+reuEsc(x.responsavel)+'</span>' : '')+(x.decisao ? '<span>✍️ '+reuEsc(x.decisao)+'</span>' : '')+'</div>';
+  }
+  return h + '</div>';
+}
+function reuHtmlItem(s, r){
+  const it = reuniao.dados.itens[s-1], n = reuniao.dados.itens.length, ed = reuniao.podeEditar;
+  const p = reuPct(it);
+  let h = '<div class="reu-item"><div class="reu-cab"><div class="reu-ico">'+reuEsc(it.icone)+'</div><div class="reu-cab-txt"><small>Item '+s+' de '+n+'</small>';
+  if(ed && reuniaoEdicao) h += '<input class="reu-in reu-tit-in" value="'+reuEsc(it.titulo)+'" oninput="reuTitulo(\''+it.id+'\',this.value)">';
+  else h += '<h2>'+reuEsc(it.titulo)+'</h2>';
+  h += '</div>'+reuAnel(p)+reuPlanta(p)+'</div><div class="reu-subs">';
+  it.subitens.forEach(function(x, k){ h += reuCartaoSub(it, x, k, r, ed); });
+  if(ed && reuniaoEdicao) h += '<button type="button" class="reu-add" onclick="reuAdd(\''+it.id+'\')">+ Adicionar tópico</button>';
+  if(r === 0 && !(ed && reuniaoEdicao)) h += '<div class="reu-dica">Pressione <kbd>Enter</kbd> para revelar o primeiro tópico ✨</div>';
+  h += '</div>';
+  if(ed) h += '<textarea class="reu-in reu-nota" placeholder="📝 Anotações do debate deste item…" oninput="reuNota(\''+it.id+'\',this.value)">'+reuEsc(it.nota)+'</textarea>';
+  else if(it.nota) h += '<div class="reu-nota-ler">📝 '+reuEsc(it.nota)+'</div>';
+  return h + '</div>';
+}
+function reuHtmlPapeis(r){
+  const d = reuniao.dados, ed = reuniao.podeEditar;
+  let h = '<div class="reu-papeis"><div class="reu-cab"><div class="reu-ico">🎽</div><div class="reu-cab-txt"><small>Organização</small><h2>Papéis da diretoria</h2></div></div><div class="reu-cartoes">';
+  d.papeis.forEach(function(pp, k){
+    if(!(k < r || (ed && reuniaoEdicao))) return;
+    const novo = (k === r-1 && reuniaoUltimo.novo);
+    const ini = (pp.nome || '?').trim().charAt(0).toUpperCase();
+    h += '<div class="reu-papel'+(novo ? ' novo' : '')+'"><div class="reu-av">'+reuEsc(ini)+'</div><div class="reu-papel-txt">';
+    if(ed){
+      h += '<input class="reu-in" placeholder="Nome" value="'+reuEsc(pp.nome)+'" oninput="reuPapel(\''+pp.id+'\',\'nome\',this.value)">'
+        + '<input class="reu-in" placeholder="Papel / responsabilidade" value="'+reuEsc(pp.papel)+'" oninput="reuPapel(\''+pp.id+'\',\'papel\',this.value)">'
+        + '<button type="button" class="reu-x" title="Remover" onclick="reuDelPapel(\''+pp.id+'\')">×</button>';
+    } else {
+      h += '<b>'+reuEsc(pp.nome || '—')+'</b><span>'+reuEsc(pp.papel || 'a definir')+'</span>';
+    }
+    h += '</div></div>';
+  });
+  h += '</div>';
+  if(!d.papeis.length) h += '<div class="reu-dica">'+(ed ? 'Adicione cada diretor e defina o papel — tudo atualiza na hora para todos.' : 'Os papéis serão definidos durante a reunião 🦊')+'</div>';
+  else if(r === 0 && !ed) h += '<div class="reu-dica">Pressione <kbd>Enter</kbd> para revelar ✨</div>';
+  if(ed) h += '<button type="button" class="reu-add" onclick="reuAddPapel()">+ Adicionar diretor</button>';
+  return h + '</div>';
+}
+function reuHtmlResumo(){
+  const d = reuniao.dados, tot = reuTotais();
+  const pct = tot.t ? tot.dec/tot.t : 0;
+  let dec = '';
+  d.itens.forEach(function(it){
+    it.subitens.forEach(function(x){
+      if(x.status==='decidido') dec += '<li><b>'+reuEsc(it.icone)+' '+reuEsc(it.titulo)+' › '+reuEsc(x.texto)+'</b>'+(x.responsavel ? '<span>👤 '+reuEsc(x.responsavel)+'</span>' : '')+(x.decisao ? '<span>✍️ '+reuEsc(x.decisao)+'</span>' : '')+'</li>';
+    });
+  });
+  const pap = d.papeis.filter(function(p){return p.nome;}).map(function(p){ return '<li><b>'+reuEsc(p.nome)+'</b><span>'+reuEsc(p.papel || 'a definir')+'</span></li>'; }).join('');
+  return '<div class="reu-resumo"><div class="reu-cab"><div class="reu-ico">🏆</div><div class="reu-cab-txt"><small>Encerramento</small><h2>Resumo da reunião</h2></div>'+reuAnel(pct)+reuPlanta(pct)+'</div>'
+    + '<div class="reu-resumo-grade"><div class="reu-grafico"><h3>📈 Decisões por item</h3>'+reuBarras('pct')+'</div>'
+    + '<div class="reu-lista"><h3>✅ Decisões ('+tot.dec+' de '+tot.t+')</h3><ul>'+(dec || '<li><span>Nenhuma decisão registrada ainda.</span></li>')+'</ul>'
+    + (pap ? '<h3>🎽 Papéis</h3><ul>'+pap+'</ul>' : '')+'</div></div></div>';
+}
+
+/* ---------- Desenho principal ---------- */
+function desenharReuniao(){
+  if(!reuniao || !document.getElementById('reu-palco')) return;
+  reuAjustarPos();
+  const d = reuniao.dados, n = d.itens.length, s = reuniaoLocal.s, r = reuniaoLocal.r, ed = reuniao.podeEditar;
+  const total = n + 3;
+  const mudouSlide = reuniaoUltimo.s !== s;
+  reuniaoUltimo.novo = (!mudouSlide && r > reuniaoUltimo.r);
+  let corpo;
+  if(s === 0) corpo = reuHtmlAbertura(r);
+  else if(s <= n) corpo = reuHtmlItem(s, r);
+  else if(s === n+1) corpo = reuHtmlPapeis(r);
+  else corpo = reuHtmlResumo();
+  let topo = '<div class="reu-topo"><div class="reu-ttl">📋 '+reuEsc(d.titulo)+' <small>'+(s+1)+' / '+total+'</small></div><div class="reu-ctl">';
+  if(ed) topo += '<span class="reu-chip vivo">🎤 Você está apresentando</span><button type="button" class="reu-btn'+(reuniaoEdicao ? ' on' : '')+'" onclick="reuEdicaoAlt()">✏️ Edição</button>';
+  else if(reuniaoSeguindo) topo += '<span class="reu-chip vivo">🔴 Ao vivo · seguindo a apresentação</span>';
+  else topo += '<button type="button" class="reu-btn on" onclick="reuSeguir()">↪ Voltar a seguir a apresentação</button>';
+  topo += '<button type="button" class="reu-btn" onclick="reuTelaCheia()">⛶ Tela cheia</button></div></div><div class="reu-pontos">';
+  for(let i=0;i<total;i++) topo += '<button type="button" class="'+(i===s ? 'at' : i<s ? 'ok' : '')+'" onclick="reuIr('+i+')" title="'+(i===0 ? 'Abertura' : i<=n ? reuEsc(d.itens[i-1].titulo) : i===n+1 ? 'Papéis' : 'Resumo')+'"></button>';
+  topo += '</div>';
+  document.getElementById('reu-topo').innerHTML = topo;
+  const palco = document.getElementById('reu-palco');
+  palco.innerHTML = '<div class="reu-slide'+(mudouSlide ? ' entrar' : '')+'">'+corpo+'</div>';
+  document.getElementById('reu-nav').innerHTML =
+    '<button type="button" class="reu-btn" onclick="reuVoltar()">◀ Voltar</button><span class="reu-hint"><kbd>Enter</kbd> avança · <kbd>←</kbd> volta · <kbd>F</kbd> tela cheia</span><button type="button" class="reu-btn primario" onclick="reuAvancar()">Avançar ▶</button>';
+  reuAnimar(mudouSlide);
+  reuniaoUltimo.s = s; reuniaoUltimo.r = r;
+}
+
+/* ---------- Navegação ---------- */
+function reuMover(s, r, silencioso){
+  if(!reuniao) return;
+  const sAnt = reuniaoLocal.s, rAnt = reuniaoLocal.r;
+  if(!reuniao.podeEditar && reuniaoSeguindo) reuniaoSeguindo = false;
+  reuniaoLocal = {s:s, r:r};
+  reuAjustarPos();
+  desenharReuniao();
+  if(!silencioso) reuReacao(sAnt, rAnt);
+  if(reuniao.podeEditar){
+    clearTimeout(reuniaoPosT);
+    reuniaoPosT = setTimeout(reuEnviarPos, 120);
+  }
+}
+async function reuEnviarPos(){
+  if(reuniaoPosEnviando){ reuniaoPosT = setTimeout(reuEnviarPos, 150); return; }
+  reuniaoPosEnviando = true;
+  try{
+    const resp = await fetch('/api/reuniao/posicao', {method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({posicao:reuniaoLocal})});
+    const j = await resp.json();
+    if(j && j.versao && reuniao) reuniao.versao = Math.max(reuniao.versao, j.versao);
+  }catch(e){}
+  reuniaoPosEnviando = false;
+}
+function reuAvancar(){
+  if(!reuniao) return;
+  const p = reuniaoLocal, n = reuniao.dados.itens.length;
+  if(p.r < reuMaxR(p.s)) reuMover(p.s, p.r+1);
+  else if(p.s < n+2) reuMover(p.s+1, 0);
+  else reuGingerFala('Fim da pauta! Parabéns, diretoria! 🎉', true);
+}
+function reuVoltar(){
+  if(!reuniao) return;
+  const p = reuniaoLocal;
+  if(p.r > 0) reuMover(p.s, p.r-1, true);
+  else if(p.s > 0) reuMover(p.s-1, reuMaxR(p.s-1), true);
+}
+function reuIr(s){ reuMover(s, 0); }
+function reuSeguir(){
+  reuniaoSeguindo = true;
+  if(reuniao && reuniao.posicao){ reuniaoLocal = {s:reuniao.posicao.s, r:reuniao.posicao.r}; }
+  desenharReuniao();
+  reuGingerFala('Seguindo a apresentação de novo! 🦊', false);
+}
+function reuTelaCheia(){
+  const el = document.getElementById('reu-raiz');
+  if(document.fullscreenElement){ document.exitFullscreen(); }
+  else if(el && el.requestFullscreen){ el.requestFullscreen().catch(function(){}); }
+}
+function reuEdicaoAlt(){ reuniaoEdicao = !reuniaoEdicao; desenharReuniao(); }
+
+/* ---------- Edição (admin) ---------- */
+function reuSalvarAgora(){
+  clearTimeout(reuniaoSalvarT);
+  reuniaoSalvarT = setTimeout(async function(){
+    reuniaoPendente = false;
+    try{
+      const resp = await fetch('/api/reuniao', {method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({dados:reuniao.dados})});
+      const j = await resp.json();
+      if(j && j.versao) reuniao.versao = Math.max(reuniao.versao, j.versao);
+      if(!resp.ok) mostrarToast((j && j.erro) || 'Não foi possível salvar.');
+      else { const el = document.getElementById('reu-salvo'); if(el){ el.classList.add('ver'); setTimeout(function(){ el.classList.remove('ver'); }, 1200); } }
+    }catch(e){ mostrarToast('Sem conexão: alteração não salva.'); }
+  }, 450);
+  reuniaoPendente = true;
+}
+function reuCampo(id, campo, valor){ const x = reuAchar(id); if(x){ x[campo] = valor; reuSalvarAgora(); } }
+function reuTitulo(id, v){ const it = reuAcharItem(id); if(it){ it.titulo = v; reuSalvarAgora(); } }
+function reuNota(id, v){ const it = reuAcharItem(id); if(it){ it.nota = v; reuSalvarAgora(); } }
+function reuCiclar(id){
+  const x = reuAchar(id); if(!x) return;
+  const ordem = ['pendente','debate','decidido'];
+  x.status = ordem[(ordem.indexOf(x.status)+1) % 3];
+  reuSalvarAgora(); desenharReuniao();
+  if(x.status === 'decidido') reuGingerFala('Decidido! 🎉', true);
+  else if(x.status === 'debate') reuGingerFala('Em debate… 💬', false);
+}
+function reuAdd(idItem){
+  const it = reuAcharItem(idItem); if(!it) return;
+  it.subitens.push({id: it.id+'s'+Date.now().toString(36), texto:'Novo tópico', status:'pendente', responsavel:'', decisao:''});
+  reuSalvarAgora();
+  if(reuniaoLocal.r < it.subitens.length && !reuniaoEdicao) reuMover(reuniaoLocal.s, it.subitens.length, true); else desenharReuniao();
+}
+function reuDel(id){
+  for(const it of reuniao.dados.itens){
+    const k = it.subitens.findIndex(function(s){return s.id===id;});
+    if(k >= 0){ it.subitens.splice(k,1); break; }
+  }
+  reuSalvarAgora(); desenharReuniao();
+}
+function reuPapel(id, campo, v){ const p = reuniao.dados.papeis.find(function(x){return x.id===id;}); if(p){ p[campo] = v; reuSalvarAgora(); } }
+function reuAddPapel(){
+  reuniao.dados.papeis.push({id:'p'+Date.now().toString(36), nome:'', papel:''});
+  reuSalvarAgora();
+  reuMover(reuniaoLocal.s, reuniao.dados.papeis.length, true);
+}
+function reuDelPapel(id){
+  const k = reuniao.dados.papeis.findIndex(function(x){return x.id===id;});
+  if(k >= 0) reuniao.dados.papeis.splice(k,1);
+  reuSalvarAgora(); desenharReuniao();
+}
+
+/* ---------- Sincronização (polling) ---------- */
+async function reuPoll(){
+  if(secaoAtual !== 'reuniao'){ clearInterval(reuniaoTimer); reuniaoTimer = null; return; }
+  if(reuniaoPollando || !reuniao) return;
+  reuniaoPollando = true;
+  try{
+    const resp = await fetch('/api/reuniao?v='+reuniao.versao, {credentials:'include'});
+    if(!resp.ok) return;
+    const j = await resp.json();
+    if(j.semMudanca) return;
+    if(reuniao.podeEditar){ reuniao.versao = Math.max(reuniao.versao, j.versao); return; }
+    const antes = {};
+    reuniao.dados.itens.forEach(function(i){ i.subitens.forEach(function(x){ antes[x.id] = x.status; }); });
+    let decidiuNovo = false;
+    j.dados.itens.forEach(function(i){ i.subitens.forEach(function(x){ if(x.status==='decidido' && antes[x.id] && antes[x.id] !== 'decidido') decidiuNovo = true; }); });
+    reuniao = j;
+    if(reuniaoSeguindo){
+      const sAnt = reuniaoLocal.s, rAnt = reuniaoLocal.r;
+      reuniaoLocal = {s:j.posicao.s, r:j.posicao.r};
+      desenharReuniao();
+      reuReacao(sAnt, rAnt);
+    } else {
+      desenharReuniao();
+    }
+    if(decidiuNovo) reuGingerFala('Decidido! 🎉', true);
+  }catch(e){} finally { reuniaoPollando = false; }
+}
+async function renderReuniao(){
+  const c = document.getElementById('conteudo');
+  if(!podeVerReuniao()){ irPara('inicio'); return; }
+  clearInterval(reuniaoTimer); reuniaoTimer = null;
+  const at = reuAtivos();
+  c.innerHTML = '<div id="reu-raiz" class="reu"><div id="reu-topo"></div><div id="reu-palco"><div class="reu-carregando">Carregando a pauta…</div></div><div id="reu-nav" class="reu-nav"></div>'
+    + '<span id="reu-salvo" class="reu-salvo">💾 salvo</span><div class="reu-mascotes">'
+    + (at.indexOf('gloria') >= 0 ? '<div id="reu-gloria" class="reu-gloria"><div class="reu-bal"></div><div class="reu-foto"></div><em>Glória</em></div>' : '')
+    + (at.indexOf('ginger') >= 0 ? '<div id="reu-ginger" class="reu-ginger"><div class="reu-bal"></div><div class="g-img"></div></div>' : '')
+    + '</div></div>';
+  try{
+    const j = await api('reuniao');
+    reuniao = j;
+    reuniaoEdicao = false; reuniaoSeguindo = true;
+    reuniaoUltimo = {s:-1, r:0};
+    reuniaoLocal = {s:j.posicao.s, r:j.posicao.r};
+    desenharReuniao();
+    setTimeout(function(){ reuGingerFala(reuniao.podeEditar ? 'Pronta quando você estiver! Enter para começar 🦊' : 'Acompanhe a apresentação ao vivo! 🦊', false, at[0]); }, 700);
+    if(at.length > 1) setTimeout(function(){ reuGingerFala('Cocoricó! Cheguei! 🐔', false, 'gloria'); }, 3300);
+    reuniaoTimer = setInterval(reuPoll, 2500);
+  }catch(e){
+    const p = document.getElementById('reu-palco');
+    if(p) p.innerHTML = '<div class="reu-carregando">Não foi possível carregar a pauta.</div>';
+  }
+}
+if(!window.__reuTeclas){
+  window.__reuTeclas = true;
+  document.addEventListener('keydown', function(e){
+    if(secaoAtual !== 'reuniao' || !reuniao) return;
+    if(e.ctrlKey || e.metaKey || e.altKey) return;
+    const el = document.activeElement;
+    if(el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+    if(el && el.tagName === 'BUTTON') el.blur();
+    const k = e.key;
+    if(k==='Enter' || k==='ArrowRight' || k===' ' || k==='PageDown'){ e.preventDefault(); reuAvancar(); }
+    else if(k==='ArrowLeft' || k==='Backspace' || k==='PageUp'){ e.preventDefault(); reuVoltar(); }
+    else if(k==='Home'){ e.preventDefault(); reuMover(0,0,true); }
+    else if(k==='End'){ e.preventDefault(); reuMover(reuniao.dados.itens.length+2,0); }
+    else if(k==='f' || k==='F'){ reuTelaCheia(); }
+  });
+}
+
 function irPara(secao){
   secaoAtual = secao;
   document.querySelectorAll('#menu-desktop button, #menu-mobile button').forEach(b=>{
@@ -2014,6 +2554,7 @@ function irPara(secao){
     pagamentos: renderPagamentos,
     calendario: renderCalendario,
     avisos: renderAvisos,
+    reuniao: renderReuniao,
     financeiro: renderFinanceiro,
     usuarios: renderUsuarios,
   };
