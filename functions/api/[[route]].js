@@ -154,7 +154,7 @@ function reuniaoPadrao(tipo) {
     ['Festival 2026', '🎪', ['Local', 'Horário', 'Lembrancinhas']],
     ['Comunicação', '📣', ['Meios de comunicação', 'Página do AGITA', 'WhatsApp']],
     ['Séries 2027', '🏅', ['Definição dos valores', 'Cronograma de montagem']],
-    ['Planejamento das aulas – 2027', '🤸', ['Preparação física', 'Ballet']],
+    ['Planejamento das aulas – 2027', '🤸', ['Preparação física', 'Ballet', 'Cronograma de treinamentos: treinos específicos para atletas que precisam', 'Datas das competições', 'Ausência das técnicas: datas de viagem e cobertura do clube (ex.: só a Renata)']],
     ['Parcerias', '🤝', ['Elaboração do portfólio AGITA', 'Psicólogo', 'Nutricionistas', 'Fisioterapeuta']],
     ['Turma da manhã – Escolinha', '🌅', ['Avaliação da viabilidade de continuidade']],
     ['Equipe e Recursos Humanos', '👥', ['Contratação de mais uma assistente', 'Reajuste salarial: Kaylane e Isabel', 'Reajuste de Renata', 'Plano de saúde para Kaylane']]
