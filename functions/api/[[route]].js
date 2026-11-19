@@ -475,6 +475,17 @@ async function tratarEventos(request, env, usuario, rota, metodo) {
       .bind(novoId, c.titulo.trim(), c.inicio, fim, c.tipo || 'Outro').run();
     return json({ id: novoId });
   }
+  if (metodo === 'PUT' && id) {
+    const bloqueado = exigirGerenciar(usuario);
+    if (bloqueado) return bloqueado;
+    const c = await request.json();
+    if (!c.titulo || !c.inicio) return erro('Preencha título e data de início.');
+    const fim = c.fim || c.inicio;
+    if (fim < c.inicio) return erro('A data de término não pode ser antes da data de início.');
+    await env.DB.prepare(`UPDATE eventos SET titulo=?, inicio=?, fim=?, tipo=? WHERE id=?`)
+      .bind(c.titulo.trim(), c.inicio, fim, c.tipo || 'Outro', id).run();
+    return json({ ok: true });
+  }
   if (metodo === 'DELETE' && id) {
     const bloqueado = exigirGerenciar(usuario);
     if (bloqueado) return bloqueado;
@@ -665,6 +676,17 @@ async function tratarAvisos(request, env, usuario, rota, metodo) {
     await env.DB.prepare(`INSERT INTO avisos_publicados (id, tipo, titulo, imagem, criado_em, exibir_ate, publico) VALUES (?,?,?,?,?,?,?)`)
       .bind(novoId, c.tipo || 'geral', c.titulo || 'Aviso', c.imagem, agora, ate, publico).run();
     return json({ id: novoId });
+  }
+  if (metodo === 'PUT' && id) {
+    const bloqueado = exigirGerenciar(usuario);
+    if (bloqueado) return bloqueado;
+    const c = await request.json();
+    const titulo = String(c.titulo || '').trim();
+    if (!titulo) return erro('Informe o título do aviso.');
+    const publico = ['todos', 'pais', 'interno', 'diretoria'].indexOf(c.publico) >= 0 ? c.publico : 'todos';
+    const exibirAte = c.exibir_ate || null;
+    await env.DB.prepare(`UPDATE avisos_publicados SET titulo=?, exibir_ate=?, publico=? WHERE id=?`).bind(titulo, exibirAte, publico, id).run();
+    return json({ ok: true });
   }
   if (metodo === 'DELETE' && id) {
     const bloqueado = exigirGerenciar(usuario);
