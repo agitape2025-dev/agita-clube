@@ -1223,6 +1223,23 @@ function dataParaISOLocal(dataObj){
   return `${ano}-${mes}-${dia}`;
 }
 
+/* Enter no login: confirma a entrada (usuário → vai para a senha; senha → entra) */
+document.addEventListener('keydown', function(ev){
+  if(ev.key !== 'Enter' || ev.isComposing) return;
+  const id = ev.target && ev.target.id;
+  if(id === 'login-usuario'){
+    ev.preventDefault();
+    const s = document.getElementById('login-senha');
+    if(s && !s.value) s.focus(); else tentarLogin();
+  } else if(id === 'login-senha'){
+    ev.preventDefault(); tentarLogin();
+  } else if(id === 'nova-senha-1'){
+    ev.preventDefault(); document.getElementById('nova-senha-2').focus();
+  } else if(id === 'nova-senha-2'){
+    ev.preventDefault(); confirmarTrocaSenha();
+  }
+});
+
 /* ---------------------------- LOGIN ---------------------------- */
 async function tentarLogin(){
   const usuario = document.getElementById('login-usuario').value.trim();
