@@ -910,8 +910,7 @@ main{padding-left:clamp(12px,3.2vw,28px);padding-right:clamp(12px,3.2vw,28px);}
   .ginger-login{height:min(78vh,260px);margin-top:0;align-self:flex-end;}
 }
 /* menu do topo: com muitos itens, vira botão ☰ antes de estourar a largura */
-@media (min-width:1401px) and (max-width:1680px){ nav.menu-desktop{gap:0;} nav.menu-desktop button{padding:10px 8px;font-size:.82rem;} }
-@media (max-width:1400px){ nav.menu-desktop{display:none;} .hamburguer{display:block;} .usuario-chip{display:none;} }
+@media (max-width:1000px){ nav.menu-desktop{display:none;} .hamburguer{display:block;} .usuario-chip{display:none;} }
 /* olho do financeiro: campos de valor ficam desfocados quando oculto */
 body.fin-oculto [id^="vm-"],body.fin-oculto #me-valor,body.fin-oculto #mn-valor,body.fin-oculto #tx-valor,body.fin-oculto #ds-valor,body.fin-oculto #rt-total,body.fin-oculto #rt-subsidio{filter:blur(6px);}
 #fin-olho{display:inline-flex;align-items:center;justify-content:center;padding:9px 14px;}
@@ -926,6 +925,16 @@ header.topo{height:76px;}
 .logo-chip{position:relative;overflow:hidden;width:58px;height:66px;padding:0;border-radius:14px;}
 .logo-chip img{position:absolute;height:84px;width:auto;left:-18.6px;top:-12.5px;max-width:none;}
 @media (max-width:520px){ .logo-chip{width:50px;height:58px;border-radius:12px;} .logo-chip img{height:74px;left:-17px;top:-11px;} }
+/* menu por categorias */
+.menu-grupo{position:relative;}
+.menu-grupo-btn .seta{font-size:.7rem;opacity:.8;margin-left:2px;}
+.menu-sub{display:none;position:absolute;top:calc(100% - 4px);left:0;min-width:200px;flex-direction:column;gap:2px;background:var(--azul-escuro);border-radius:12px;padding:8px;box-shadow:0 14px 30px rgba(0,0,0,.3);z-index:60;border-top:3px solid var(--laranja);}
+.menu-grupo.aberto > .menu-sub{display:flex;}
+@media (hover:hover){ .menu-grupo:hover > .menu-sub{display:flex;} }
+nav.menu-desktop .menu-sub button{text-align:left;width:100%;}
+.menu-grupo:has(.bolinha-novo) > .menu-grupo-btn::after{content:'';display:inline-block;width:8px;height:8px;margin-left:6px;border-radius:50%;background:var(--laranja);}
+.menu-titulo{color:var(--laranja-claro);font-size:.72rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;padding:12px 10px 2px;}
+#menu-mobile button.sub{padding-left:22px;}
 </style>
 </head>
 <body>
@@ -1649,23 +1658,54 @@ const ITENS_MENU = [
   {id:'financeiro', rotulo:'Financeiro', somenteFinanceiro:true},
   {id:'usuarios', rotulo:'Usuários', somenteAdmin:true},
 ];
+/* Menu organizado por categorias (menus suspensos no computador; títulos de seção no celular) */
+const MENU_GRUPOS = [
+  {rotulo:'Início', itens:['inicio']},
+  {rotulo:'Clube', itens:['atletas','chamada','documentos','missao']},
+  {rotulo:'Agenda e avisos', itens:['calendario','avisos','hoteis']},
+  {rotulo:'Reuniões', itens:['reuniao','reuniao-pais']},
+  {rotulo:'Gestão', itens:['pagamentos','financeiro','usuarios']}
+];
+function menuItemPermitido(item){
+  if(item.somenteAdmin && !ehAdminEquivalente()) return false;
+  if(item.somenteEquipe && !ehEquipe()) return false;
+  if(item.somenteFinanceiro && !podeVerFinanceiro()) return false;
+  if(item.somenteDiretoria && !podeVerReuniao()) return false;
+  if(item.reuniaoPais && !podeVerReuniaoPais()) return false;
+  return true;
+}
+function fecharGruposMenu(){ document.querySelectorAll('.menu-grupo.aberto').forEach(function(g){ g.classList.remove('aberto'); }); }
+function alternarGrupoMenu(wrap){ const era = wrap.classList.contains('aberto'); fecharGruposMenu(); if(!era) wrap.classList.add('aberto'); }
+document.addEventListener('click', fecharGruposMenu);
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape') fecharGruposMenu(); });
 function montarMenu(){
   const desktop = document.getElementById('menu-desktop');
   const mobile = document.getElementById('menu-mobile');
   desktop.innerHTML=''; mobile.innerHTML='';
-  ITENS_MENU.forEach(item=>{
-    if(item.somenteAdmin && !ehAdminEquivalente()) return;
-    if(item.somenteEquipe && !ehEquipe()) return;
-    if(item.somenteFinanceiro && !podeVerFinanceiro()) return;
-    if(item.somenteDiretoria && !podeVerReuniao()) return;
-    if(item.reuniaoPais && !podeVerReuniaoPais()) return;
-    const b1 = document.createElement('button');
-    b1.textContent = item.rotulo; b1.dataset.secao = item.id;
-    b1.onclick = ()=>irPara(item.id);
-    desktop.appendChild(b1);
-    const b2 = b1.cloneNode(true);
-    b2.onclick = ()=>{irPara(item.id); alternarMenuMobile(true);};
-    mobile.appendChild(b2);
+  function botaoItem(it, destino, sub){
+    const b = document.createElement('button');
+    b.textContent = it.rotulo; b.dataset.secao = it.id;
+    if(sub) b.className = 'sub';
+    b.onclick = function(){ irPara(it.id); if(destino === 'mobile') alternarMenuMobile(true); else fecharGruposMenu(); };
+    return b;
+  }
+  MENU_GRUPOS.forEach(function(g){
+    const itens = g.itens.map(function(id){ return ITENS_MENU.find(function(x){ return x.id === id; }); }).filter(function(x){ return x && menuItemPermitido(x); });
+    if(!itens.length) return;
+    if(itens.length === 1){
+      desktop.appendChild(botaoItem(itens[0], 'desktop', false));
+      mobile.appendChild(botaoItem(itens[0], 'mobile', false));
+      return;
+    }
+    const wrap = document.createElement('div'); wrap.className = 'menu-grupo';
+    const gb = document.createElement('button'); gb.type = 'button'; gb.className = 'menu-grupo-btn';
+    gb.innerHTML = g.rotulo + ' <span class="seta">▾</span>';
+    gb.onclick = function(ev){ ev.stopPropagation(); alternarGrupoMenu(wrap); };
+    const sub = document.createElement('div'); sub.className = 'menu-sub';
+    itens.forEach(function(it){ sub.appendChild(botaoItem(it, 'desktop', false)); });
+    wrap.appendChild(gb); wrap.appendChild(sub); desktop.appendChild(wrap);
+    const tit = document.createElement('div'); tit.className = 'menu-titulo'; tit.textContent = g.rotulo; mobile.appendChild(tit);
+    itens.forEach(function(it){ mobile.appendChild(botaoItem(it, 'mobile', true)); });
   });
   if(!emModoApp()){
     const ba = document.createElement('button');
@@ -3049,6 +3089,7 @@ function irPara(secao){
   document.querySelectorAll('#menu-desktop button, #menu-mobile button').forEach(b=>{
     b.classList.toggle('ativo', b.dataset.secao===secao);
   });
+  document.querySelectorAll('#menu-desktop .menu-grupo').forEach(function(g){ g.querySelector('.menu-grupo-btn').classList.toggle('ativo', !!g.querySelector('.menu-sub button.ativo')); });
   const renderizadores = {
     inicio: renderInicio,
     atletas: renderAtletas,
