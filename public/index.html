@@ -4359,7 +4359,7 @@ function renderTabelaUsuarios(){
             <td>${formatarDataHora(u.ultimo_acesso)}</td>
             <td>${u.precisa_trocar_senha ? '<span class="selo selo-pendente">Troca pendente</span>' : '<span class="selo selo-confirmado">OK</span>'}</td>
             <td style="white-space:nowrap;">
-              <button class="btn btn-sm btn-secundario" onclick="resetarSenha('${u.id}')">Resetar senha</button>
+              ${(usuarioLogado.papel==='admin' && u.id!==usuarioLogado.id) ? `<button class="btn btn-sm btn-secundario" onclick="abrirAlterarPerfil('${u.id}')">Alterar perfil</button> ` : ''}<button class="btn btn-sm btn-secundario" onclick="resetarSenha('${u.id}')">Resetar senha</button>
               <button class="btn btn-sm btn-perigo" onclick="excluirUsuario('${u.id}')">Excluir</button>
             </td>
           </tr>`).join('')}
@@ -4395,6 +4395,29 @@ async function salvarUsuario(){
   await carregarUsuarios();
   mostrarToast('Usuário criado.');
 }
+let perfilEditandoId = null;
+function abrirAlterarPerfil(id){
+  if(!usuarioLogado || usuarioLogado.papel !== 'admin') return;
+  const u = usuariosCache.find(function(x){ return x.id === id; });
+  if(!u) return;
+  perfilEditandoId = id;
+  const opt = function(v){ return '<option value="'+v+'"'+(u.papel===v ? ' selected' : '')+'>'+rotuloPapel(v)+'</option>'; };
+  abrirModal(
+    '<h3>Alterar perfil</h3>'
+    + '<p style="margin-top:0;">'+escaparTexto(u.nome)+' · perfil atual: <b>'+rotuloPapel(u.papel)+'</b></p>'
+    + '<div class="campo"><label>Novo perfil</label><select id="pf-papel">'+opt('usuario')+opt('tecnica')+opt('diretoria')+opt('financeiro')+opt('admin')+'</select></div>'
+    + '<p class="dica-chamada">A mudança vale na hora: no próximo acesso (ou ao recarregar o app) essa pessoa vê o menu do novo perfil. Dá para voltar ao perfil anterior quando quiser.</p>'
+    + '<div class="barra-acoes"><button class="btn btn-primario" onclick="salvarAlterarPerfil()">Salvar</button><button class="btn btn-secundario" onclick="fecharModal()">Cancelar</button></div>'
+  );
+}
+async function salvarAlterarPerfil(){
+  const papel = document.getElementById('pf-papel').value;
+  try{ await api('usuarios/'+perfilEditandoId, {method:'PUT', corpo:{papel:papel}}); }catch(e){ return; }
+  fecharModal();
+  await carregarUsuarios();
+  mostrarToast('Perfil alterado para '+rotuloPapel(papel)+'.');
+}
+
 async function resetarSenha(id){
   const u = usuariosCache.find(x=>x.id===id);
   if(!confirm(`Resetar a senha de ${u.nome} para o padrão (Agita@123)?`)) return;
