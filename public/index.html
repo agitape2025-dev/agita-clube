@@ -912,6 +912,9 @@ main{padding-left:clamp(12px,3.2vw,28px);padding-right:clamp(12px,3.2vw,28px);}
 /* menu do topo: com muitos itens, vira botão ☰ antes de estourar a largura */
 @media (min-width:1401px) and (max-width:1680px){ nav.menu-desktop{gap:0;} nav.menu-desktop button{padding:10px 8px;font-size:.82rem;} }
 @media (max-width:1400px){ nav.menu-desktop{display:none;} .hamburguer{display:block;} .usuario-chip{display:none;} }
+/* olho do financeiro: campos de valor ficam desfocados quando oculto */
+body.fin-oculto [id^="vm-"],body.fin-oculto #me-valor,body.fin-oculto #mn-valor,body.fin-oculto #tx-valor,body.fin-oculto #ds-valor,body.fin-oculto #rt-total,body.fin-oculto #rt-subsidio{filter:blur(6px);}
+#fin-olho{display:inline-flex;align-items:center;justify-content:center;padding:9px 14px;}
 </style>
 </head>
 <body>
@@ -3996,7 +3999,11 @@ let mensalidadesCache = [];
 let taxasCache = [];
 let despesasCache = [];
 
+/* Olho do Financeiro: oculta os valores (R$ ****) */
+let finOculto = false;
+try{ finOculto = localStorage.getItem('agita_fin_oculto') === '1'; }catch(e){}
 function formatarMoeda(v){
+  if(finOculto && secaoAtual === 'financeiro') return 'R$ ****';
   return (Number(v)||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
 }
 function formatarMesReferencia(mesRef){
@@ -4011,10 +4018,12 @@ function rotuloStatusMensalidade(s){
 
 async function renderFinanceiro(){
   if(!podeVerFinanceiro()){ irPara('inicio'); return; }
+  document.body.classList.toggle('fin-oculto', finOculto);
   const c = document.getElementById('conteudo');
   c.innerHTML = `
     <div class="cabecalho-secao">
       <div><h2>Financeiro</h2><p>Mensalidades, taxas, despesas e rateio do clube.</p></div>
+      <button class="btn btn-secundario" id="fin-olho" onclick="financeiroAlternarOlho()" title="Ocultar ou mostrar os valores" aria-label="Ocultar ou mostrar os valores">${finOculto ? FIN_ICO_FECHADO : FIN_ICO_ABERTO}</button>
     </div>
     <div class="cartao" style="padding:8px;margin-bottom:18px;">
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -4031,6 +4040,16 @@ async function renderFinanceiro(){
   if(financeiroAtletasCache.length===0){
     try{ financeiroAtletasCache = (await api('atletas')).atletas; }catch(e){ financeiroAtletasCache = []; }
   }
+  financeiroRenderizarAba();
+}
+const FIN_ICO_ABERTO = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const FIN_ICO_FECHADO = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+function financeiroAlternarOlho(){
+  finOculto = !finOculto;
+  try{ localStorage.setItem('agita_fin_oculto', finOculto ? '1' : '0'); }catch(e){}
+  document.body.classList.toggle('fin-oculto', finOculto);
+  const b = document.getElementById('fin-olho');
+  if(b) b.innerHTML = finOculto ? FIN_ICO_FECHADO : FIN_ICO_ABERTO;
   financeiroRenderizarAba();
 }
 function financeiroTrocarAba(aba){
