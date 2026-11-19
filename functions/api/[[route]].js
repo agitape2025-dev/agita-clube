@@ -169,11 +169,14 @@ function reuniaoPadrao(tipo) {
   };
 }
 async function tratarReuniao(request, env, usuario, rota, metodo) {
-  if (usuario.papel !== 'admin' && usuario.papel !== 'diretoria' && usuario.papel !== 'financeiro') return erro('Acesso restrito à diretoria.', 403);
+  const tipoReq = new URL(request.url).searchParams.get('tipo') === 'pais' ? 'pais' : 'principal';
+  const ehTec = usuario.papel === 'tecnica';
+  if (['admin', 'diretoria', 'financeiro'].indexOf(usuario.papel) < 0 && !(ehTec && tipoReq === 'pais')) return erro('Acesso restrito à diretoria.', 403);
   const ehAdm = usuario.papel === 'admin';
   const tipo = new URL(request.url).searchParams.get('tipo') === 'pais' ? 'pais' : 'principal';
   if (!reuniaoPronta) {
     await env.DB.prepare("CREATE TABLE IF NOT EXISTS reuniao_estado (id TEXT PRIMARY KEY, dados TEXT NOT NULL, posicao TEXT NOT NULL, versao INTEGER NOT NULL DEFAULT 1, atualizado_em TEXT)").run();
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS reuniao_notas (id TEXT PRIMARY KEY, tipo TEXT NOT NULL, item_id TEXT NOT NULL, autor TEXT, texto TEXT NOT NULL, criado_em TEXT)").run();
     reuniaoPronta = true;
   }
   let linha = await env.DB.prepare("SELECT * FROM reuniao_estado WHERE id = '" + tipo + "'").first();
@@ -185,7 +188,31 @@ async function tratarReuniao(request, env, usuario, rota, metodo) {
   if (metodo === 'GET') {
     const v = Number(new URL(request.url).searchParams.get('v') || 0);
     if (v === linha.versao) return json({ semMudanca: true, versao: linha.versao, podeEditar: ehAdm });
-    return json({ versao: linha.versao, dados: JSON.parse(linha.dados), posicao: JSON.parse(linha.posicao), podeEditar: ehAdm, atualizadoEm: linha.atualizado_em });
+    const rsNotas = await env.DB.prepare("SELECT id, item_id, autor, texto, criado_em FROM reuniao_notas WHERE tipo = ? ORDER BY criado_em").bind(tipo).all();
+    const meuNome = usuario.nome || usuario.email || 'Equipe';
+    const notas = (rsNotas.results || []).map(function (n) { return { id: n.id, item_id: n.item_id, autor: n.autor, texto: n.texto, criado_em: n.criado_em, pode_apagar: ehAdm || n.autor === meuNome }; });
+    return json({ versao: linha.versao, dados: JSON.parse(linha.dados), posicao: JSON.parse(linha.posicao), podeEditar: ehAdm, podeAnotar: true, notas: notas, atualizadoEm: linha.atualizado_em });
+  }
+  if (rota[1] === 'nota') {
+    if (metodo === 'POST') {
+      const corpo = await request.json().catch(() => ({}));
+      const texto = String((corpo && corpo.texto) || '').trim().slice(0, 2000);
+      const itemId = String((corpo && corpo.itemId) || '').slice(0, 60);
+      if (!texto || !itemId) return erro('Escreva a anotação.');
+      await env.DB.prepare("INSERT INTO reuniao_notas (id, tipo, item_id, autor, texto, criado_em) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(gerarId('rn'), tipo, itemId, usuario.nome || usuario.email || 'Equipe', texto, new Date().toISOString()).run();
+    } else if (metodo === 'DELETE') {
+      const idNota = new URL(request.url).searchParams.get('id') || '';
+      const n = await env.DB.prepare("SELECT autor FROM reuniao_notas WHERE id = ? AND tipo = ?").bind(idNota, tipo).first();
+      if (!n) return erro('Anotação não encontrada.', 404);
+      if (!ehAdm && n.autor !== (usuario.nome || usuario.email || 'Equipe')) return erro('Você só pode apagar as suas anotações.', 403);
+      await env.DB.prepare("DELETE FROM reuniao_notas WHERE id = ?").bind(idNota).run();
+    } else {
+      return erro('Rota não encontrada.', 404);
+    }
+    await env.DB.prepare("UPDATE reuniao_estado SET versao = versao + 1 WHERE id = '" + tipo + "'").run();
+    const nv = await env.DB.prepare("SELECT versao FROM reuniao_estado WHERE id = '" + tipo + "'").first();
+    return json({ ok: true, versao: nv.versao });
   }
   if (!ehAdm) return erro('Apenas o administrador pode alterar a reunião.', 403);
   const agora = new Date().toISOString();
