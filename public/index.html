@@ -2542,6 +2542,57 @@ if(!window.__reuTeclas){
   });
 }
 
+/* ================================================================
+   ATUALIZAÇÃO AUTOMÁTICA: confere se há versão nova do site ao abrir,
+   ao voltar para o app e a cada 10 minutos; se houver, recarrega.
+   ================================================================ */
+let assinaturaSite = null, verificandoSite = false;
+function assinar(txt){ let h = 5381; for(let i=0;i<txt.length;i++){ h = ((h<<5)+h + txt.charCodeAt(i)) | 0; } return txt.length+':'+h; }
+async function lerAssinaturaSite(){
+  const r = await fetch('/?chk='+Math.floor(Date.now()/1000), {cache:'no-cache'});
+  if(!r.ok) throw new Error('falhou');
+  return assinar(await r.text());
+}
+function usuarioOcupado(){
+  const el = document.activeElement;
+  if(el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return true;
+  const m = document.getElementById('modal-fundo');
+  if(m && m.style.display === 'flex') return true;
+  return secaoAtual === 'reuniao';
+}
+function mostrarAvisoAtualizacao(){
+  if(document.getElementById('aviso-atualizacao')) return;
+  const d = document.createElement('div');
+  d.id = 'aviso-atualizacao';
+  d.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99999;background:#132A52;color:#fff;border-radius:99px;padding:10px 12px 10px 18px;box-shadow:0 8px 24px rgba(0,0,0,.3);display:flex;gap:12px;align-items:center;font:700 .95rem Nunito,sans-serif';
+  d.innerHTML = '<span>✨ Nova versão do AGITA disponível</span><button type="button" style="border:0;border-radius:99px;background:#F2892B;color:#fff;padding:8px 16px;font:800 .9rem Nunito,sans-serif;cursor:pointer">Atualizar</button>';
+  d.querySelector('button').onclick = function(){ location.reload(); };
+  document.body.appendChild(d);
+}
+async function verificarAtualizacaoSite(){
+  if(verificandoSite) return;
+  verificandoSite = true;
+  try{
+    const atual = await lerAssinaturaSite();
+    if(assinaturaSite === null){ assinaturaSite = atual; }
+    else if(atual !== assinaturaSite){
+      if(usuarioOcupado()) mostrarAvisoAtualizacao();
+      else location.reload();
+    }
+  }catch(e){} finally { verificandoSite = false; }
+}
+if(!window.__atualizacaoAuto){
+  window.__atualizacaoAuto = true;
+  window.addEventListener('load', function(){ setTimeout(verificarAtualizacaoSite, 1500); });
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') verificarAtualizacaoSite(); });
+  window.addEventListener('focus', verificarAtualizacaoSite);
+  window.addEventListener('online', verificarAtualizacaoSite);
+  setInterval(verificarAtualizacaoSite, 10*60*1000);
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.update().catch(function(){}); }); }).catch(function(){});
+  }
+}
+
 function irPara(secao){
   secaoAtual = secao;
   document.querySelectorAll('#menu-desktop button, #menu-mobile button').forEach(b=>{
