@@ -128,7 +128,28 @@ export async function onRequest(context) {
 // Reunião da diretoria (pauta interativa, sincronizada por polling)
 // ---------------------------------------------------------------------------
 let reuniaoPronta = false;
-function reuniaoPadrao() {
+function reuniaoPadraoPais() {
+  const def = [
+    ['Boas-vindas e apresentação da equipe', '👋', ['Apresentação da diretoria e das técnicas', 'Nossa mascote']],
+    ['Balanço de 2026', '🏆', ['Conquistas das atletas', 'Apresentações e competições']],
+    ['Festival 2026', '🎪', ['Local e horário', 'Lembrancinhas', 'Participação das famílias']],
+    ['Séries 2027', '🏅', ['Cronograma de montagem', 'Valores']],
+    ['Mensalidades e pagamentos', '💳', ['Valores para 2027', 'Datas de vencimento', 'Formas de pagamento']],
+    ['Rotina e convivência', '📋', ['Horários e pontualidade', 'Uniforme', 'Faltas e justificativas']],
+    ['Comunicação com as famílias', '📣', ['Portal e aplicativo do AGITA', 'Avisos e WhatsApp']],
+    ['Dúvidas e sugestões', '💬', ['Espaço aberto para as famílias']]
+  ];
+  return {
+    titulo: 'Reunião com os Pais AGITA',
+    itens: def.map((d, i) => ({
+      id: 'i' + (i + 1), titulo: d[0], icone: d[1], nota: '',
+      subitens: d[2].map((t, j) => ({ id: 'i' + (i + 1) + 's' + (j + 1), texto: t, status: 'pendente', responsavel: '', decisao: '' }))
+    })),
+    papeis: []
+  };
+}
+function reuniaoPadrao(tipo) {
+  if (tipo === 'pais') return reuniaoPadraoPais();
   const def = [
     ['Festival 2026', '🎪', ['Local', 'Horário', 'Lembrancinhas']],
     ['Comunicação', '📣', ['Meios de comunicação', 'Página do AGITA', 'WhatsApp']],
@@ -150,15 +171,16 @@ function reuniaoPadrao() {
 async function tratarReuniao(request, env, usuario, rota, metodo) {
   if (usuario.papel !== 'admin' && usuario.papel !== 'diretoria' && usuario.papel !== 'financeiro') return erro('Acesso restrito à diretoria.', 403);
   const ehAdm = usuario.papel === 'admin';
+  const tipo = new URL(request.url).searchParams.get('tipo') === 'pais' ? 'pais' : 'principal';
   if (!reuniaoPronta) {
     await env.DB.prepare("CREATE TABLE IF NOT EXISTS reuniao_estado (id TEXT PRIMARY KEY, dados TEXT NOT NULL, posicao TEXT NOT NULL, versao INTEGER NOT NULL DEFAULT 1, atualizado_em TEXT)").run();
     reuniaoPronta = true;
   }
-  let linha = await env.DB.prepare("SELECT * FROM reuniao_estado WHERE id = 'principal'").first();
+  let linha = await env.DB.prepare("SELECT * FROM reuniao_estado WHERE id = '" + tipo + "'").first();
   if (!linha) {
-    await env.DB.prepare("INSERT OR IGNORE INTO reuniao_estado (id, dados, posicao, versao, atualizado_em) VALUES ('principal', ?, ?, 1, ?)")
-      .bind(JSON.stringify(reuniaoPadrao()), JSON.stringify({ s: 0, r: 0 }), new Date().toISOString()).run();
-    linha = await env.DB.prepare("SELECT * FROM reuniao_estado WHERE id = 'principal'").first();
+    await env.DB.prepare("INSERT OR IGNORE INTO reuniao_estado (id, dados, posicao, versao, atualizado_em) VALUES ('" + tipo + "', ?, ?, 1, ?)")
+      .bind(JSON.stringify(reuniaoPadrao(tipo)), JSON.stringify({ s: 0, r: 0 }), new Date().toISOString()).run();
+    linha = await env.DB.prepare("SELECT * FROM reuniao_estado WHERE id = '" + tipo + "'").first();
   }
   if (metodo === 'GET') {
     const v = Number(new URL(request.url).searchParams.get('v') || 0);
@@ -173,20 +195,20 @@ async function tratarReuniao(request, env, usuario, rota, metodo) {
     if (!dados || !Array.isArray(dados.itens)) return erro('Dados inválidos.');
     const txt = JSON.stringify(dados);
     if (txt.length > 300000) return erro('Conteúdo grande demais.');
-    await env.DB.prepare("UPDATE reuniao_estado SET dados = ?, versao = versao + 1, atualizado_em = ? WHERE id = 'principal'").bind(txt, agora).run();
+    await env.DB.prepare("UPDATE reuniao_estado SET dados = ?, versao = versao + 1, atualizado_em = ? WHERE id = '" + tipo + "'").bind(txt, agora).run();
   } else if (metodo === 'POST' && rota[1] === 'posicao') {
     const corpo = await request.json().catch(() => ({}));
     const p = corpo && corpo.posicao;
     if (!p) return erro('Posição inválida.');
     const pos = { s: Math.max(0, parseInt(p.s, 10) || 0), r: Math.max(0, parseInt(p.r, 10) || 0) };
-    await env.DB.prepare("UPDATE reuniao_estado SET posicao = ?, versao = versao + 1, atualizado_em = ? WHERE id = 'principal'").bind(JSON.stringify(pos), agora).run();
+    await env.DB.prepare("UPDATE reuniao_estado SET posicao = ?, versao = versao + 1, atualizado_em = ? WHERE id = '" + tipo + "'").bind(JSON.stringify(pos), agora).run();
   } else if (metodo === 'POST' && rota[1] === 'restaurar') {
-    await env.DB.prepare("UPDATE reuniao_estado SET dados = ?, posicao = ?, versao = versao + 1, atualizado_em = ? WHERE id = 'principal'")
-      .bind(JSON.stringify(reuniaoPadrao()), JSON.stringify({ s: 0, r: 0 }), agora).run();
+    await env.DB.prepare("UPDATE reuniao_estado SET dados = ?, posicao = ?, versao = versao + 1, atualizado_em = ? WHERE id = '" + tipo + "'")
+      .bind(JSON.stringify(reuniaoPadrao(tipo)), JSON.stringify({ s: 0, r: 0 }), agora).run();
   } else {
     return erro('Rota não encontrada.', 404);
   }
-  const nova = await env.DB.prepare("SELECT versao FROM reuniao_estado WHERE id = 'principal'").first();
+  const nova = await env.DB.prepare("SELECT versao FROM reuniao_estado WHERE id = '" + tipo + "'").first();
   return json({ ok: true, versao: nova.versao });
 }
 
