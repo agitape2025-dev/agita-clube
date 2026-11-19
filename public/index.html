@@ -1643,6 +1643,34 @@ function renderMissao(){
     '</div>';
 }
 
+/* ================= GÊNERO + SAUDAÇÃO DA MASCOTE ================= */
+function bemVindoGenero(){
+  const g = usuarioLogado && usuarioLogado.genero;
+  return g === 'M' ? 'Bem-vindo' : (g === 'F' ? 'Bem-vinda' : 'Bem-vindo(a)');
+}
+function gingerBoasVindas(nome){
+  const hora = new Date().getHours();
+  const fecho = hora < 5 ? 'Madrugando hoje? 🌙' : (hora < 12 ? 'Vamos começar o dia treinando? ☀️' : (hora < 18 ? 'Vamos treinar? 🤸' : 'À noite o AGITA também brilha! 🌙'));
+  return saudacaoPorHorario() + (nome ? ', ' + nome : '') + '! ' + bemVindoGenero() + '! ' + fecho;
+}
+function rotuloGenero(g){ return g === 'F' ? 'Feminino' : (g === 'M' ? 'Masculino' : 'Definir'); }
+let generoEditandoId = null;
+function abrirGeneroUsuario(id){
+  const u = usuariosCache.find(function(x){ return x.id === id; });
+  if(!u) return;
+  generoEditandoId = id;
+  abrirModal('<h3>Gênero</h3><p style="margin-top:0;">' + escaparTexto(u.nome) + '</p>'
+    + '<div class="campo"><label>Gênero (usado na saudação da mascote)</label><select id="gn-genero"><option value="">Selecione...</option><option value="F"' + (u.genero === 'F' ? ' selected' : '') + '>Feminino</option><option value="M"' + (u.genero === 'M' ? ' selected' : '') + '>Masculino</option></select></div>'
+    + '<div class="barra-acoes"><button class="btn btn-primario" onclick="salvarGeneroUsuario()">Salvar</button><button class="btn btn-secundario" onclick="fecharModal()">Cancelar</button></div>');
+}
+async function salvarGeneroUsuario(){
+  const g = document.getElementById('gn-genero').value;
+  if(!g){ mostrarToast('Selecione o gênero.'); return; }
+  try{ await api('usuarios/' + generoEditandoId, {method:'PUT', corpo:{genero:g}}); }catch(e){ return; }
+  if(usuarioLogado && usuarioLogado.id === generoEditandoId) usuarioLogado.genero = g;
+  fecharModal(); await carregarUsuarios(); mostrarToast('Gênero atualizado.');
+}
+
 const ITENS_MENU = [
   {id:'inicio', rotulo:'Início'},
   {id:'atletas', rotulo:'Atletas', somenteEquipe:true},
@@ -4785,13 +4813,14 @@ function renderTabelaUsuarios(){
   const alvo = document.getElementById('tabela-usuarios');
   alvo.innerHTML = `
     <table>
-      <thead><tr><th>Usuário</th><th>Nome</th><th>Papel</th><th>Último acesso</th><th>Status senha</th><th></th></tr></thead>
+      <thead><tr><th>Usuário</th><th>Nome</th><th>Papel</th><th>Gênero</th><th>Último acesso</th><th>Status senha</th><th></th></tr></thead>
       <tbody>
         ${usuariosCache.map(u=>`
           <tr>
             <td>${u.usuario}</td>
             <td>${u.nome}</td>
             <td><span class="selo selo-${u.papel}">${rotuloPapel(u.papel)}</span></td>
+            <td><button class="btn btn-sm btn-secundario" onclick="abrirGeneroUsuario('${u.id}')">${rotuloGenero(u.genero)}</button></td>
             <td>${formatarDataHora(u.ultimo_acesso)}</td>
             <td>${u.precisa_trocar_senha ? '<span class="selo selo-pendente">Troca pendente</span>' : '<span class="selo selo-confirmado">OK</span>'}</td>
             <td style="white-space:nowrap;">
@@ -4812,6 +4841,9 @@ function abrirFormUsuario(){
     <div class="campo"><label>Papel</label>
       <select id="uf-papel"><option value="usuario">Pais de Atleta</option><option value="tecnica">Técnica</option><option value="diretoria">Diretoria</option><option value="financeiro">Financeiro</option><option value="admin">Administrador</option></select>
     </div>
+    <div class="campo"><label>Gênero (usado na saudação da mascote)</label>
+      <select id="uf-genero"><option value="">Selecione...</option><option value="F">Feminino</option><option value="M">Masculino</option></select>
+    </div>
     <p style="font-size:0.82rem;color:var(--texto-suave);">A senha inicial será <b>Agita@123</b> — o usuário será obrigado a trocá-la no primeiro acesso.</p>
     <div class="barra-acoes">
       <button class="btn btn-primario" onclick="salvarUsuario()">Criar usuário</button>
@@ -4823,9 +4855,11 @@ async function salvarUsuario(){
   const nome = document.getElementById('uf-nome').value.trim();
   const usuario = document.getElementById('uf-usuario').value.trim();
   const papel = document.getElementById('uf-papel').value;
+  const genero = document.getElementById('uf-genero').value;
   if(!nome || !usuario){ mostrarToast('Preencha todos os campos.'); return; }
+  if(!genero){ mostrarToast('Selecione o gênero.'); return; }
   try{
-    await api('usuarios', {method:'POST', corpo:{nome, usuario, papel}});
+    await api('usuarios', {method:'POST', corpo:{nome, usuario, papel, genero}});
   }catch(e){ return; }
   fecharModal();
   await carregarUsuarios();
@@ -5050,7 +5084,7 @@ document.getElementById('modal-fundo').addEventListener('click', function(e){
     h.innerHTML = '<div class="ginger-balao"></div><div class="g-img"></div>';
     cab.appendChild(h);
     h.addEventListener('click', function(){ aoClicarGinger(h); });
-    setTimeout(function(){ falar(h, (nome ? 'Bem-vinda, '+nome+'! ' : 'Bem-vinda! ') + 'Vamos treinar? 🤸', 4800); }, 1100);
+    setTimeout(function(){ falar(h, gingerBoasVindas(nome), 4800); }, 1100);
   }
 
   /* ---------- transição de entrada das páginas ---------- */
