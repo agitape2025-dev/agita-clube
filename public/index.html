@@ -1606,6 +1606,35 @@ async function hotSalvarReserva(){
   }catch(e){}
 }
 
+/* ================= MISSÃO, VISÃO E VALORES ================= */
+function renderMissao(){
+  const c = document.getElementById('conteudo');
+  const valores = [
+    ['🎯','Disciplina','Treino com constância e foco.'],
+    ['🤝','Respeito','Pelas atletas, pelas famílias e pela equipe.'],
+    ['👨‍👩‍👧','União','Clube e famílias caminhando juntos.'],
+    ['🚀','Superação','Cada conquista nasce do esforço do dia a dia.'],
+    ['😄','Alegria','Aprender, treinar e competir com leveza.'],
+    ['🔍','Transparência','Gestão clara, do financeiro aos avisos.']
+  ];
+  const bloco = function(icone, titulo, texto){
+    return '<div class="cartao" style="margin:0;border-top:5px solid var(--laranja);">' +
+      '<div style="font-size:1.8rem;">' + icone + '</div>' +
+      '<h3 style="margin:6px 0 8px;color:var(--azul-escuro);">' + titulo + '</h3>' +
+      '<p style="margin:0;line-height:1.55;">' + texto + '</p></div>';
+  };
+  c.innerHTML =
+    '<div class="cabecalho-secao"><div><h2>Missão, Visão e Valores</h2><p>O que move o AGITA — Ginástica Rítmica.</p></div></div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:20px;">' +
+      bloco('🌟','Missão','Formar atletas e pessoas por meio da Ginástica Rítmica, com treinos de qualidade, acolhimento e um ambiente seguro e alegre — do primeiro passo na Escolinha ao Alto Rendimento.') +
+      bloco('🔭','Visão','Ser referência em Ginástica Rítmica em Pernambuco, reconhecido pela excelência técnica, pela organização e pela parceria com as famílias.') +
+    '</div>' +
+    '<h3 style="color:var(--azul-escuro);margin:6px 0 12px;">Nossos valores</h3>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;">' +
+      valores.map(function(v){ return bloco(v[0], v[1], v[2]); }).join('') +
+    '</div>';
+}
+
 const ITENS_MENU = [
   {id:'inicio', rotulo:'Início'},
   {id:'atletas', rotulo:'Atletas', somenteEquipe:true},
@@ -1615,6 +1644,7 @@ const ITENS_MENU = [
   {id:'calendario', rotulo:'Calendário'},
   {id:'avisos', rotulo:'Avisos'},
   {id:'hoteis', rotulo:'Hotéis'},
+  {id:'missao', rotulo:'Missão e Valores'},
   {id:'reuniao', rotulo:'Reunião Diretoria', somenteDiretoria:true},
   {id:'reuniao-pais', rotulo:'Reunião Pais', reuniaoPais:true},
   {id:'financeiro', rotulo:'Financeiro', somenteFinanceiro:true},
@@ -3029,6 +3059,7 @@ function irPara(secao){
     calendario: renderCalendario,
     avisos: renderAvisos,
     hoteis: renderHoteis,
+    missao: renderMissao,
     reuniao: renderReuniao,
     'reuniao-pais': renderReuniaoPais,
     financeiro: renderFinanceiro,
