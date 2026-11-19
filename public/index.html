@@ -575,6 +575,13 @@ body[data-secao="reuniao"] .ginger-guia,body[data-secao="reuniao-pais"] .ginger-
 .reu-bal{position:absolute;right:0;bottom:calc(100% + 4px);width:max-content;max-width:210px;background:#fff;color:var(--azul-escuro);font-weight:800;font-size:.92rem;border-radius:16px;padding:10px 14px;box-shadow:0 8px 22px rgba(0,0,0,.25);opacity:0;transform:translateY(8px) scale(.9);transform-origin:bottom right;transition:all .3s cubic-bezier(.2,.9,.3,1.3);z-index:7}
 .reu-ginger .reu-bal{bottom:calc(100% - 28px)}
 .reu-ginger.fala .reu-bal,.reu-gloria.fala .reu-bal{opacity:1;transform:none}
+.reu-notas{margin-top:14px;background:rgba(255,255,255,.1);border-radius:16px;padding:12px 14px;display:grid;gap:8px}
+.reu-notas h4{margin:0;font-family:'Baloo 2',sans-serif;font-size:1.05rem}
+.reu-notas textarea{min-height:60px;resize:vertical}
+.reu-notas .reu-btn{justify-self:start}
+.reu-nota-item{background:rgba(255,255,255,.14);border-radius:12px;padding:8px 36px 8px 12px;display:grid;gap:2px;position:relative}
+.reu-nota-item span{font-size:.92rem}
+.reu-nota-item .reu-x{position:absolute;right:6px;top:6px;width:24px;height:24px;font-size:1rem}
 .sem-trans *{transition:none !important}
 @media(max-width:820px){
   .reu{padding:14px 12px 200px;border-radius:16px}
@@ -1260,7 +1267,7 @@ const ITENS_MENU = [
   {id:'calendario', rotulo:'Calendário'},
   {id:'avisos', rotulo:'Avisos'},
   {id:'reuniao', rotulo:'Reunião Diretoria', somenteDiretoria:true},
-  {id:'reuniao-pais', rotulo:'Reunião Pais', somenteDiretoria:true},
+  {id:'reuniao-pais', rotulo:'Reunião Pais', reuniaoPais:true},
   {id:'financeiro', rotulo:'Financeiro', somenteFinanceiro:true},
   {id:'usuarios', rotulo:'Usuários', somenteAdmin:true},
 ];
@@ -1273,6 +1280,7 @@ function montarMenu(){
     if(item.somenteEquipe && !ehEquipe()) return;
     if(item.somenteFinanceiro && !podeVerFinanceiro()) return;
     if(item.somenteDiretoria && !podeVerReuniao()) return;
+    if(item.reuniaoPais && !podeVerReuniaoPais()) return;
     const b1 = document.createElement('button');
     b1.textContent = item.rotulo; b1.dataset.secao = item.id;
     b1.onclick = ()=>irPara(item.id);
@@ -2150,6 +2158,7 @@ let reuniaoTimer = null, reuniaoSalvarT = null, reuniaoPosT = null, reuniaoPolla
 let reuniaoUltimo = {s:-1,r:0}, reuniaoGTimer = null, reuniaoPendente = false;
 let reuniaoTipo = 'diretoria';
 function reuQ(){ return 'tipo='+reuniaoTipo; }
+let reuRascunho = '';
 function emReuniao(){ return secaoAtual==='reuniao' || secaoAtual==='reuniao-pais'; }
 const REU_ST = {pendente:['⚪','Pendente'], debate:['💬','Em debate'], decidido:['✅','Decidido']};
 const REU_FRASES = [
@@ -2161,6 +2170,7 @@ const REU_FRASES = [
 const REU_REACOES = ['Boa! Vamos debater 💬', 'O que vocês acham? 🤔', 'Anotado! ✍️', 'Próximo ponto! 👀', 'Opiniões, pessoal! 🗣️'];
 const REU_REACOES_G = ['Cocoricó! Boa ideia! 🐔', 'Eu também quero opinar! 🐔', 'Time AGITA! 💪', 'Anotado, anotado! ✍️🐔', 'Isso vai dar certo! 🐔'];
 function podeVerReuniao(){ return !!usuarioLogado && (usuarioLogado.papel==='admin' || usuarioLogado.papel==='diretoria' || usuarioLogado.papel==='financeiro'); }
+function podeVerReuniaoPais(){ return podeVerReuniao() || (!!usuarioLogado && usuarioLogado.papel==='tecnica'); }
 function reuAtivos(){ return MASCOTE_VENCEDORA==='gloria' ? ['gloria'] : MASCOTE_VENCEDORA==='ginger' ? ['ginger'] : ['ginger','gloria']; }
 function reuEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function reuAchar(id){ for(const it of reuniao.dados.itens){ const x = it.subitens.find(function(s){return s.id===id;}); if(x) return x; } return null; }
@@ -2303,10 +2313,53 @@ function reuHtmlItem(s, r){
   if(ed && reuniaoEdicao) h += '<button type="button" class="reu-add" onclick="reuAdd(\''+it.id+'\')">+ Adicionar tópico</button>';
   if(r === 0 && !(ed && reuniaoEdicao)) h += '<div class="reu-dica">Pressione <kbd>Enter</kbd> para revelar o primeiro tópico ✨</div>';
   h += '</div>';
+  h += reuHtmlNotas(it);
   if(ed) h += '<textarea class="reu-in reu-nota" placeholder="📝 Anotações do debate deste item…" oninput="reuNota(\''+it.id+'\',this.value)">'+reuEsc(it.nota)+'</textarea>';
   else if(it.nota) h += '<div class="reu-nota-ler">📝 '+reuEsc(it.nota)+'</div>';
   return h + '</div>';
 }
+function reuHtmlNotas(it){
+  const notas = (reuniao.notas || []).filter(function(n){ return n.item_id === it.id; });
+  if(!notas.length && !reuniao.podeAnotar) return '';
+  let h = '<div class="reu-notas"><h4>📝 Anotações da equipe</h4>';
+  notas.forEach(function(n){
+    h += '<div class="reu-nota-item"><b>'+reuEsc(n.autor)+'</b><span>'+reuEsc(n.texto)+'</span>'+(n.pode_apagar ? '<button type="button" class="reu-x" title="Apagar" onclick="reuApagarNotaEquipe(\''+n.id+'\')">×</button>' : '')+'</div>';
+  });
+  if(reuniao.podeAnotar){
+    h += '<textarea id="reu-nota-nova" class="reu-in" placeholder="Escreva uma anotação sobre este item…" oninput="reuNotaNovaInput(this.value)"></textarea>'
+      + '<button type="button" class="reu-btn primario" onclick="reuSalvarNotaEquipe(\''+it.id+'\')">Salvar anotação</button>';
+  }
+  return h + '</div>';
+}
+function reuNotasResumo(){
+  const notas = reuniao.notas || [];
+  if(!notas.length) return '';
+  const nomes = {};
+  reuniao.dados.itens.forEach(function(i){ nomes[i.id] = i.titulo; });
+  return '<h3>📝 Anotações</h3><ul>'+notas.map(function(n){ return '<li><b>'+reuEsc(nomes[n.item_id] || 'Geral')+' · '+reuEsc(n.autor)+'</b><span>'+reuEsc(n.texto)+'</span></li>'; }).join('')+'</ul>';
+}
+function reuNotaNovaInput(v){ reuRascunho = v; }
+async function reuForcarPoll(){ if(reuniao){ reuniao.versao = -1; await reuPoll(); } }
+async function reuSalvarNotaEquipe(itemId){
+  const txt = (reuRascunho || '').trim();
+  if(!txt){ mostrarToast('Escreva a anotação antes de salvar.'); return; }
+  try{
+    const resp = await fetch('/api/reuniao/nota?'+reuQ(), {method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({itemId:itemId, texto:txt})});
+    const j = await resp.json();
+    if(!resp.ok){ mostrarToast((j && j.erro) || 'Não foi possível salvar.'); return; }
+    reuRascunho = '';
+    await reuForcarPoll();
+    reuGingerFala('Anotado! ✍️', false);
+  }catch(e){ mostrarToast('Sem conexão: anotação não salva.'); }
+}
+async function reuApagarNotaEquipe(id){
+  try{
+    const resp = await fetch('/api/reuniao/nota?'+reuQ()+'&id='+encodeURIComponent(id), {method:'DELETE', credentials:'include'});
+    if(!resp.ok){ const j = await resp.json().catch(function(){return null;}); mostrarToast((j && j.erro) || 'Não foi possível apagar.'); return; }
+    await reuForcarPoll();
+  }catch(e){ mostrarToast('Sem conexão.'); }
+}
+
 function reuHtmlPapeis(r){
   const d = reuniao.dados, ed = reuniao.podeEditar;
   let h = '<div class="reu-papeis"><div class="reu-cab"><div class="reu-ico">🎽</div><div class="reu-cab-txt"><small>Organização</small><h2>'+(reuniaoTipo==='pais' ? 'Nossa equipe' : 'Papéis da diretoria')+'</h2></div></div><div class="reu-cartoes">';
@@ -2343,7 +2396,7 @@ function reuHtmlResumo(){
   return '<div class="reu-resumo"><div class="reu-cab"><div class="reu-ico">🏆</div><div class="reu-cab-txt"><small>Encerramento</small><h2>Resumo da reunião</h2></div>'+reuAnel(pct)+reuPlanta(pct)+'</div>'
     + '<div class="reu-resumo-grade"><div class="reu-grafico"><h3>📈 Decisões por item</h3>'+reuBarras('pct')+'</div>'
     + '<div class="reu-lista"><h3>✅ Decisões ('+tot.dec+' de '+tot.t+')</h3><ul>'+(dec || '<li><span>Nenhuma decisão registrada ainda.</span></li>')+'</ul>'
-    + (pap ? '<h3>🎽 Papéis</h3><ul>'+pap+'</ul>' : '')+'</div></div></div>';
+    + (pap ? '<h3>🎽 Papéis</h3><ul>'+pap+'</ul>' : '') + reuNotasResumo() + '</div></div></div>';
 }
 
 /* ---------- Desenho principal ---------- */
@@ -2368,7 +2421,13 @@ function desenharReuniao(){
   topo += '</div>';
   document.getElementById('reu-topo').innerHTML = topo;
   const palco = document.getElementById('reu-palco');
+  if(mudouSlide) reuRascunho = '';
+  const ta0 = document.getElementById('reu-nota-nova');
+  const tinhaFoco = !!ta0 && document.activeElement === ta0;
+  const pos0 = tinhaFoco ? ta0.selectionStart : 0;
   palco.innerHTML = '<div class="reu-slide'+(mudouSlide ? ' entrar' : '')+'">'+corpo+'</div>';
+  const ta1 = document.getElementById('reu-nota-nova');
+  if(ta1){ ta1.value = reuRascunho; if(tinhaFoco){ ta1.focus(); try{ ta1.setSelectionRange(pos0, pos0); }catch(e){} } }
   document.getElementById('reu-nav').innerHTML =
     '<button type="button" class="reu-btn" onclick="reuVoltar()">◀ Voltar</button><span class="reu-hint"><kbd>Enter</kbd> avança · <kbd>←</kbd> volta · <kbd>F</kbd> tela cheia</span><button type="button" class="reu-btn primario" onclick="reuAvancar()">Avançar ▶</button>';
   reuAnimar(mudouSlide);
@@ -2487,7 +2546,15 @@ async function reuPoll(){
     if(!resp.ok) return;
     const j = await resp.json();
     if(j.semMudanca) return;
-    if(reuniao.podeEditar){ reuniao.versao = Math.max(reuniao.versao, j.versao); return; }
+    if(reuniao.podeEditar){
+      const mudouNotas = JSON.stringify(reuniao.notas || []) !== JSON.stringify(j.notas || []);
+      const el0 = document.activeElement;
+      if(mudouNotas && el0 && /^(INPUT|TEXTAREA|SELECT)$/.test(el0.tagName)) return;
+      reuniao.notas = j.notas;
+      reuniao.versao = Math.max(reuniao.versao, j.versao);
+      if(mudouNotas) desenharReuniao();
+      return;
+    }
     const antes = {};
     reuniao.dados.itens.forEach(function(i){ i.subitens.forEach(function(x){ antes[x.id] = x.status; }); });
     let decidiuNovo = false;
@@ -2507,7 +2574,7 @@ async function reuPoll(){
 async function renderReuniao(tipo){
   reuniaoTipo = (tipo === 'pais') ? 'pais' : 'diretoria';
   const c = document.getElementById('conteudo');
-  if(!podeVerReuniao()){ irPara('inicio'); return; }
+  if(!(reuniaoTipo==='pais' ? podeVerReuniaoPais() : podeVerReuniao())){ irPara('inicio'); return; }
   clearInterval(reuniaoTimer); reuniaoTimer = null;
   const at = reuAtivos();
   c.innerHTML = '<div id="reu-raiz" class="reu"><div id="reu-topo"></div><div id="reu-palco"><div class="reu-carregando">Carregando a pauta…</div></div><div id="reu-nav" class="reu-nav"></div>'
