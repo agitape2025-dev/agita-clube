@@ -148,7 +148,7 @@ function reuniaoPadrao() {
   };
 }
 async function tratarReuniao(request, env, usuario, rota, metodo) {
-  if (usuario.papel !== 'admin' && usuario.papel !== 'diretoria') return erro('Acesso restrito à diretoria.', 403);
+  if (usuario.papel !== 'admin' && usuario.papel !== 'diretoria' && usuario.papel !== 'financeiro') return erro('Acesso restrito à diretoria.', 403);
   const ehAdm = usuario.papel === 'admin';
   if (!reuniaoPronta) {
     await env.DB.prepare("CREATE TABLE IF NOT EXISTS reuniao_estado (id TEXT PRIMARY KEY, dados TEXT NOT NULL, posicao TEXT NOT NULL, versao INTEGER NOT NULL DEFAULT 1, atualizado_em TEXT)").run();
