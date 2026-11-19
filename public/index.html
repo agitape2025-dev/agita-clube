@@ -909,6 +909,9 @@ main{padding-left:clamp(12px,3.2vw,28px);padding-right:clamp(12px,3.2vw,28px);}
   #tela-login{flex-direction:row;gap:18px;justify-content:center;padding:10px;}
   .ginger-login{height:min(78vh,260px);margin-top:0;align-self:flex-end;}
 }
+/* menu do topo: com muitos itens, vira botão ☰ antes de estourar a largura */
+@media (min-width:1401px) and (max-width:1680px){ nav.menu-desktop{gap:0;} nav.menu-desktop button{padding:10px 8px;font-size:.82rem;} }
+@media (max-width:1400px){ nav.menu-desktop{display:none;} .hamburguer{display:block;} .usuario-chip{display:none;} }
 </style>
 </head>
 <body>
