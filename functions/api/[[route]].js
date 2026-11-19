@@ -64,10 +64,11 @@ function cookieLimpar() {
 
 // Busca o usuário logado a partir do cookie de sessão. Retorna null se não houver sessão válida.
 async function usuarioDaSessao(request, env) {
+  await garantirColunaGenero(env);
   const token = lerCookie(request, 'agita_sessao');
   if (!token) return null;
   const sessao = await env.DB.prepare(
-    `SELECT s.usuario_id, s.expira_em, u.id, u.usuario, u.nome, u.papel, u.precisa_trocar_senha
+    `SELECT s.usuario_id, s.expira_em, u.id, u.usuario, u.nome, u.papel, u.genero, u.precisa_trocar_senha
      FROM sessoes s JOIN usuarios u ON u.id = s.usuario_id
      WHERE s.token = ?`
   ).bind(token).first();
@@ -78,6 +79,7 @@ async function usuarioDaSessao(request, env) {
     usuario: sessao.usuario,
     nome: sessao.nome,
     papel: sessao.papel,
+    genero: sessao.genero || '',
     precisaTrocarSenha: !!sessao.precisa_trocar_senha
   };
 }
@@ -395,7 +397,7 @@ async function tratarLogin(request, env) {
   await env.DB.prepare(`UPDATE usuarios SET ultimo_acesso = ? WHERE id = ?`).bind(agora.toISOString(), u.id).run();
 
   return json(
-    { usuario: { id: u.id, usuario: u.usuario, nome: u.nome, papel: u.papel, precisaTrocarSenha: !!u.precisa_trocar_senha } },
+    { usuario: { id: u.id, usuario: u.usuario, nome: u.nome, papel: u.papel, genero: u.genero || '', precisaTrocarSenha: !!u.precisa_trocar_senha } },
     200,
     { 'Set-Cookie': cookieSessao(token, DURACAO_SESSAO_MS / 1000) }
   );
@@ -810,15 +812,26 @@ async function tratarAvisos(request, env, usuario, rota, metodo) {
 // ---------------------------------------------------------------------------
 // USUÁRIOS (somente admin)
 // ---------------------------------------------------------------------------
+// Garante (uma vez por instância) a coluna de gênero em usuários (M = masculino, F = feminino)
+let colunaGeneroGarantida = false;
+async function garantirColunaGenero(env) {
+  if (colunaGeneroGarantida) return;
+  try {
+    const { results } = await env.DB.prepare("SELECT name FROM pragma_table_info('usuarios')").all();
+    if (!results.some(r => r.name === 'genero')) await env.DB.prepare("ALTER TABLE usuarios ADD COLUMN genero TEXT").run();
+  } catch (e) { /* outra instância pode ter criado a coluna ao mesmo tempo */ }
+  colunaGeneroGarantida = true;
+}
 async function tratarUsuarios(request, env, usuario, rota, metodo) {
   const bloqueado = exigirAdmin(usuario);
   if (bloqueado) return bloqueado;
+  await garantirColunaGenero(env);
   const id = rota[1];
   const acao = rota[2]; // ex: /api/usuarios/u2/resetar-senha
 
   if (metodo === 'GET' && !id) {
     const { results } = await env.DB.prepare(
-      `SELECT id, usuario, nome, papel, precisa_trocar_senha, ultimo_acesso FROM usuarios ORDER BY nome`
+      `SELECT id, usuario, nome, papel, genero, precisa_trocar_senha, ultimo_acesso FROM usuarios ORDER BY nome`
     ).all();
     return json({ usuarios: results });
   }
@@ -834,6 +847,7 @@ async function tratarUsuarios(request, env, usuario, rota, metodo) {
     await env.DB.prepare(
       `INSERT INTO usuarios (id, usuario, senha_hash, senha_salt, nome, papel, precisa_trocar_senha, ultimo_acesso) VALUES (?,?,?,?,?,?,1,NULL)`
     ).bind(novoId, c.usuario.trim(), hash, salt, c.nome.trim(), papel).run();
+    if (c.genero === 'M' || c.genero === 'F') await env.DB.prepare("UPDATE usuarios SET genero=? WHERE id=?").bind(c.genero, novoId).run();
     return json({ id: novoId });
   }
   if (metodo === 'POST' && id && acao === 'resetar-senha') {
@@ -843,10 +857,15 @@ async function tratarUsuarios(request, env, usuario, rota, metodo) {
     return json({ ok: true });
   }
   if (metodo === 'PUT' && id) {
+    const c = await request.json().catch(() => ({}));
+    if (c.genero !== undefined) {
+      if (['M', 'F'].indexOf(c.genero) < 0) return erro('Gênero inválido.');
+      await env.DB.prepare("UPDATE usuarios SET genero=? WHERE id=?").bind(c.genero, id).run();
+      if (c.papel === undefined) return json({ ok: true });
+    }
     // Só o administrador (não o financeiro) altera o perfil de um usuário cadastrado.
     if (usuario.papel !== 'admin') return erro('Apenas o administrador pode alterar o perfil de um usuário.', 403);
     if (id === usuario.id) return erro('Você não pode alterar o seu próprio perfil.');
-    const c = await request.json();
     if (['usuario', 'tecnica', 'diretoria', 'financeiro', 'admin'].indexOf(c.papel) < 0) return erro('Perfil inválido.');
     await env.DB.prepare(`UPDATE usuarios SET papel=? WHERE id=?`).bind(c.papel, id).run();
     return json({ ok: true });
