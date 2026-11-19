@@ -582,6 +582,7 @@ body[data-secao="reuniao"] .ginger-guia,body[data-secao="reuniao-pais"] .ginger-
 .reu-nota-item{background:rgba(255,255,255,.14);border-radius:12px;padding:8px 36px 8px 12px;display:grid;gap:2px;position:relative}
 .reu-nota-item span{font-size:.92rem}
 .reu-nota-item .reu-x{position:absolute;right:6px;top:6px;width:24px;height:24px;font-size:1rem}
+.lista-eventos-dia li.cal-aviso{cursor:pointer;background:#FFE7CC;color:#A4500C;border-radius:6px}
 .sem-trans *{transition:none !important}
 @media(max-width:820px){
   .reu{padding:14px 12px 200px;border-radius:16px}
@@ -1083,7 +1084,7 @@ function rotuloPapel(papel){
   if(papel==='tecnica') return 'Técnica';
   if(papel==='diretoria') return 'Diretoria';
   if(papel==='financeiro') return 'Financeiro';
-  return 'Usuário';
+  return 'Pais de Atleta';
 }
 // admin, técnica, diretoria e financeiro operam/visualizam o clube (atletas, documentos, pagamentos);
 // financeiro tem as mesmas funções do admin (inclusive gestão de Usuários — ver ehAdminEquivalente);
@@ -3153,6 +3154,7 @@ async function carregarEventos(){
     eventosCache = dados.eventos;
   }catch(e){ eventosCache = []; }
   desenharCalendario();
+  try{ const av = await api('avisos'); avisosCache = av.avisos || []; desenharCalendario(); }catch(e){}
 }
 function mudarMesCal(delta){
   calMesAtual += delta;
@@ -3178,7 +3180,7 @@ function desenharCalendario(){
     const ehHoje = dataObj.toDateString()===hojeStr;
     html += `<div class="cal-dia ${ehHoje?'hoje':''}">
       <strong>${dia}</strong>
-      <ul class="lista-eventos-dia">${eventosDia.map(e=>`<li title="${e.titulo}">${e.titulo}</li>`).join('')}</ul>
+      <ul class="lista-eventos-dia">${calAvisosDoDia(dataISO)}${eventosDia.map(e=>`<li title="${e.titulo}" ${ehAdmin ? 'style="cursor:pointer" data-id="'+e.id+'" onclick="abrirFormEvento(this.dataset.id)"' : ''}>${e.titulo}</li>`).join('')}</ul>
     </div>`;
   }
   grade.innerHTML = html;
@@ -3196,14 +3198,17 @@ function desenharCalendario(){
         <td>${e.inicio===e.fim ? formatarData(e.inicio) : formatarData(e.inicio)+' a '+formatarData(e.fim)}</td>
         <td>${e.titulo}</td>
         <td>${e.tipo}</td>
-        ${ehAdmin ? `<td><button class="btn btn-sm btn-perigo" onclick="excluirEvento('${e.id}')">Excluir</button></td>` : ''}
+        ${ehAdmin ? `<td><button class="btn btn-sm btn-secundario" onclick="abrirFormEvento('${e.id}')">Editar</button> <button class="btn btn-sm btn-perigo" onclick="excluirEvento('${e.id}')">Excluir</button></td>` : ''}
       </tr>`).join('')}
   </tbody></table>`;
 }
-function abrirFormEvento(){
+let eventoEditandoId = null;
+function abrirFormEvento(idEdicao){
   if(!podeGerenciar()) return;
+  const ev = idEdicao ? eventosCache.find(function(x){ return x.id === idEdicao; }) : null;
+  eventoEditandoId = ev ? ev.id : null;
   abrirModal(`
-    <h3>Novo evento</h3>
+    <h3>${ev ? 'Editar evento' : 'Novo evento'}</h3>
     <div class="campo"><label>Título</label><input type="text" id="ef-titulo"></div>
     <div class="linha-form">
       <div class="campo"><label>Início</label><input type="date" id="ef-inicio" onchange="sincronizarFimEvento()"></div>
@@ -3221,6 +3226,12 @@ function abrirFormEvento(){
       <button class="btn btn-secundario" onclick="fecharModal()">Cancelar</button>
     </div>
   `);
+  if(ev){
+    document.getElementById('ef-titulo').value = ev.titulo;
+    document.getElementById('ef-inicio').value = ev.inicio;
+    document.getElementById('ef-fim').value = ev.fim;
+    document.getElementById('ef-tipo').value = ev.tipo;
+  }
 }
 function sincronizarFimEvento(){
   const fimEl = document.getElementById('ef-fim');
@@ -3234,11 +3245,12 @@ async function salvarEvento(){
   if(!titulo || !inicio){ mostrarToast('Preencha título e data de início.'); return; }
   if(fim < inicio){ mostrarToast('A data de término não pode ser antes da data de início.'); return; }
   try{
-    await api('eventos', {method:'POST', corpo:{titulo, inicio, fim, tipo}});
+    await api(eventoEditandoId ? 'eventos/'+eventoEditandoId : 'eventos', {method: eventoEditandoId ? 'PUT' : 'POST', corpo:{titulo, inicio, fim, tipo}});
   }catch(e){ return; }
   fecharModal();
   await carregarEventos();
-  mostrarToast('Evento adicionado.');
+  mostrarToast(eventoEditandoId ? 'Evento atualizado.' : 'Evento adicionado.');
+  eventoEditandoId = null;
 }
 async function excluirEvento(id){
   try{ await api('eventos/'+id, {method:'DELETE'}); }catch(e){ return; }
@@ -3339,7 +3351,7 @@ async function renderGaleriaAvisos(){
           <div class="rotulo">Público: ${rotuloPublico(av.publico)}</div>
           <div class="barra-acoes">
             <a class="btn btn-sm btn-secundario" href="${av.imagem}" download="agita-aviso.png">Baixar</a>
-            ${ehAdmin ? `<button class="btn btn-sm btn-perigo" onclick="excluirAvisoPublicado('${av.id}')">Excluir</button>` : ''}
+            ${ehAdmin ? `<button class="btn btn-sm btn-secundario" onclick="abrirEditarAviso('${av.id}')">Editar</button> <button class="btn btn-sm btn-perigo" onclick="excluirAvisoPublicado('${av.id}')">Excluir</button>` : ''}
           </div>
         </div>
       `).join('')}
@@ -3597,6 +3609,45 @@ async function publicarAviso(){
   mostrarToast('Aviso publicado no mural.');
   enviarPushAviso(document.getElementById('av-publico')?.value || 'todos');
 }
+function calAvisosDoDia(dataISO){
+  return (avisosCache || []).filter(function(a){ return a.exibir_ate === dataISO; }).map(function(a){
+    return '<li class="cal-aviso" title="'+reuEsc(a.titulo)+'" data-id="'+a.id+'" onclick="abrirAvisoAmpliado(this.dataset.id)">📢 '+reuEsc(a.titulo)+'</li>';
+  }).join('');
+}
+let avisoEditandoId = null;
+function abrirEditarAviso(id){
+  if(!podeGerenciar()) return;
+  const av = (avisosCache || []).find(function(a){ return a.id === id; });
+  if(!av) return;
+  avisoEditandoId = id;
+  const pub = av.publico || 'todos';
+  const opt = function(v, rot){ return '<option value="'+v+'"'+(pub===v ? ' selected' : '')+'>'+rot+'</option>'; };
+  abrirModal(
+    '<h3>Editar aviso</h3>'
+    + '<div class="campo"><label>Título</label><input type="text" id="ea-titulo" value="'+reuEsc(av.titulo)+'"></div>'
+    + '<div class="campo"><label>Público do aviso</label><select id="ea-publico">'
+    + opt('todos','Todos (pais, técnicas e diretoria)') + opt('pais','Só os pais (diretoria e adm também veem)') + opt('interno','Interno (diretoria e técnicas)') + opt('diretoria','Só diretoria')
+    + '</select></div>'
+    + '<div class="campo"><label>Aviso para a data (opcional)</label><input type="date" id="ea-data" value="'+reuEsc(av.exibir_ate || '')+'"><p class="dica-chamada">Em branco: aparece para os pais só no dia da publicação. Com uma data: aparece desde já até esse dia e também no calendário.</p></div>'
+    + '<p class="dica-chamada">A imagem do cartão não muda. Para mudar o texto da imagem, publique um novo aviso e exclua este.</p>'
+    + '<div class="barra-acoes"><button class="btn btn-primario" onclick="salvarEdicaoAviso()">Salvar</button><button class="btn btn-secundario" onclick="fecharModal()">Cancelar</button></div>'
+  );
+}
+async function salvarEdicaoAviso(){
+  const titulo = document.getElementById('ea-titulo').value.trim();
+  if(!titulo){ mostrarToast('Informe o título do aviso.'); return; }
+  try{
+    await api('avisos/'+avisoEditandoId, {method:'PUT', corpo:{
+      titulo: titulo,
+      publico: document.getElementById('ea-publico').value,
+      exibir_ate: document.getElementById('ea-data').value || null
+    }});
+  }catch(e){ return; }
+  fecharModal();
+  await renderGaleriaAvisos();
+  mostrarToast('Aviso atualizado.');
+}
+
 async function excluirAvisoPublicado(id){
   try{ await api('avisos/'+id, {method:'DELETE'}); }catch(e){ return; }
   await renderGaleriaAvisos();
@@ -4323,7 +4374,7 @@ function abrirFormUsuario(){
     <div class="campo"><label>Nome completo</label><input type="text" id="uf-nome"></div>
     <div class="campo"><label>Usuário (login)</label><input type="text" id="uf-usuario"></div>
     <div class="campo"><label>Papel</label>
-      <select id="uf-papel"><option value="usuario">Usuário</option><option value="tecnica">Técnica</option><option value="diretoria">Diretoria</option><option value="financeiro">Financeiro</option><option value="admin">Administrador</option></select>
+      <select id="uf-papel"><option value="usuario">Pais de Atleta</option><option value="tecnica">Técnica</option><option value="diretoria">Diretoria</option><option value="financeiro">Financeiro</option><option value="admin">Administrador</option></select>
     </div>
     <p style="font-size:0.82rem;color:var(--texto-suave);">A senha inicial será <b>Agita@123</b> — o usuário será obrigado a trocá-la no primeiro acesso.</p>
     <div class="barra-acoes">
