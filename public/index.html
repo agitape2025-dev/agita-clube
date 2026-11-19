@@ -1259,6 +1259,274 @@ window.addEventListener('DOMContentLoaded', async ()=>{
 });
 
 /* ---------------------------- MENU / NAVEGAÇÃO ---------------------------- */
+/* ================================================================
+   HOTÉIS — sugestões do clube + aceite dos pais com lista de hóspedes
+   ================================================================ */
+let hotDados = {hoteis:[], reservas:[]};
+let hotAcs = [];
+let hotEditId = null;
+let hotG = null;
+const HOT_TIPOS = ['Individual','Duplo','Triplo','Quádruplo','Quíntuplo','Sêxtuplo','Outro'];
+const HOT_CAP = {individual:1, solteiro:1, duplo:2, casal:2, triplo:3, 'quádruplo':4, quadruplo:4, 'quíntuplo':5, quintuplo:5, 'sêxtuplo':6, sextuplo:6};
+const HOT_BASE = {pessoa:'por pessoa', quarto:'por quarto', pacote:'total do pacote'};
+const HOT_IDADE_CRIANCA = 12; // até 12 anos = criança
+function podeGerirHoteis(){ return !!usuarioLogado && ['admin','diretoria','financeiro'].indexOf(usuarioLogado.papel) >= 0; }
+function hotMoeda(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+function hotCap(t){ return HOT_CAP[String(t||'').toLowerCase()] || 0; }
+function hotIdade(iso){
+  if(!iso) return null;
+  const n = new Date(iso + 'T00:00:00');
+  if(isNaN(n.getTime())) return null;
+  const h = new Date();
+  let i = h.getFullYear() - n.getFullYear();
+  const m = h.getMonth() - n.getMonth();
+  if(m < 0 || (m === 0 && h.getDate() < n.getDate())) i--;
+  return i < 0 ? null : i;
+}
+function hotFaixa(i){ return i === null ? '' : (i <= HOT_IDADE_CRIANCA ? 'Criança' : 'Adulto'); }
+function hotTotal(h, r){ return h.valorBase === 'pessoa' ? Number(r.valor) * r.hospedes.length : Number(r.valor); }
+
+async function renderHoteis(){
+  const c = document.getElementById('conteudo');
+  c.innerHTML = '<div class="cartao">Carregando...</div>';
+  try{ hotDados = await api('hoteis'); }catch(e){ return; }
+  const gest = podeGerirHoteis();
+  c.innerHTML = `
+    <div class="cabecalho-secao">
+      <div><h2>Hotéis</h2><p>${gest ? 'Cadastre as sugestões de hospedagem do clube e acompanhe os aceites das famílias.' : 'Sugestões de hospedagem do clube. Veja as fotos, escolha a acomodação e clique em "Aceito" para informar os hóspedes.'}</p></div>
+      ${gest ? '<button class="btn btn-primario" onclick="hotAbrirForm()">+ Novo hotel</button>' : ''}
+    </div>
+    <div id="hot-lista"></div>`;
+  hotDesenhar();
+}
+
+function hotDesenhar(){
+  const alvo = document.getElementById('hot-lista');
+  if(!alvo) return;
+  const gest = podeGerirHoteis();
+  if(!hotDados.hoteis.length){
+    alvo.innerHTML = '<div class="cartao"><div class="vazio">' + (gest ? 'Nenhum hotel cadastrado ainda. Clique em "+ Novo hotel" para incluir a primeira sugestão.' : 'Ainda não há sugestões de hotel. Quando o clube publicar, elas aparecem aqui.') + '</div></div>';
+    return;
+  }
+  alvo.innerHTML = hotDados.hoteis.map(h=>{
+    const minha = hotDados.reservas.find(r=>r.hotelId === h.id && r.usuarioId === usuarioLogado.id);
+    const todas = hotDados.reservas.filter(r=>r.hotelId === h.id);
+    const mapa = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(h.endereco || h.nome);
+    const linhas = h.acomodacoes.map(a=>`<tr><td style="padding:6px 8px;border-top:1px solid #eee;">${escaparTexto(a.tipo)}</td><td style="padding:6px 8px;border-top:1px solid #eee;text-align:right;font-weight:700;color:var(--azul-escuro);">${hotMoeda(a.valor)} <span style="font-weight:400;font-size:0.8rem;color:var(--texto-suave);">${HOT_BASE[h.valorBase]}</span></td></tr>`).join('');
+    let areaPais;
+    if(minha){
+      areaPais = `<div style="background:#eaf7ee;border:1.5px solid #8fd1a3;border-radius:12px;padding:12px 14px;margin-top:12px;">
+        <b>✅ Você aceitou: ${escaparTexto(minha.acomodacao)}</b> · ${hotMoeda(minha.valor)} ${HOT_BASE[h.valorBase]}<br>
+        <span style="color:var(--texto-suave);">${minha.hospedes.length} hóspede(s) · total estimado ${hotMoeda(hotTotal(h, minha))}</span>
+        <div class="barra-acoes" style="margin-top:10px;">
+          <button class="btn btn-secundario" onclick="hotEditarHospedes('${h.id}')">Editar hóspedes</button>
+          <button class="btn btn-perigo" onclick="hotCancelarAceite('${h.id}')">Cancelar aceite</button>
+        </div></div>`;
+    } else {
+      areaPais = `<div style="margin-top:12px;padding:12px 14px;border:1.5px dashed var(--laranja-forte);border-radius:12px;">
+        <div style="font-weight:700;margin-bottom:8px;color:var(--azul-escuro);">Gostou? Escolha a acomodação e aceite a sugestão do clube:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <select id="hot-sel-${h.id}" style="flex:1;min-width:200px;">${h.acomodacoes.map((a,i)=>'<option value="'+i+'">'+escaparTexto(a.tipo)+' — '+hotMoeda(a.valor)+'</option>').join('')}</select>
+          <button class="btn btn-primario" onclick="hotAceitar('${h.id}')">Aceito ✔</button>
+        </div></div>`;
+    }
+    let areaGestor = '';
+    if(gest){
+      const tot = todas.reduce((s,r)=>s + r.hospedes.length, 0);
+      const listaAceites = todas.length ? todas.map(r=>{
+        const lis = r.hospedes.map(g=>{ const id = hotIdade(g.nascimento); return '<li>'+escaparTexto(g.nome)+' — '+formatarData(g.nascimento)+(id!==null?' ('+id+' anos, '+hotFaixa(id)+')':'')+'</li>'; }).join('');
+        return `<details style="margin:6px 0;"><summary><b>${escaparTexto(r.usuarioNome)}</b> — ${escaparTexto(r.acomodacao)} · ${r.hospedes.length} hóspede(s) · ${hotMoeda(hotTotal(h, r))}</summary>
+          <ul style="margin:6px 0 6px 18px;">${lis}</ul>
+          ${r.contato ? '<div style="margin-left:18px;color:var(--texto-suave);">Contato: '+escaparTexto(r.contato)+'</div>' : ''}
+          <div style="margin:6px 0 0 18px;"><button class="btn btn-perigo" onclick="hotRemoverAceite('${h.id}','${r.id}')">Remover aceite</button></div></details>`;
+      }).join('') : '<div style="color:var(--texto-suave);">Nenhuma família aceitou ainda.</div>';
+      areaGestor = `<div style="margin-top:14px;padding-top:12px;border-top:1px solid #eee;">
+        <div style="font-weight:700;color:var(--azul-escuro);">Aceites das famílias: ${todas.length} · ${tot} hóspede(s)</div>
+        ${listaAceites}
+        <div class="barra-acoes" style="margin-top:10px;">
+          <button class="btn btn-secundario" onclick="hotAbrirForm('${h.id}')">Editar hotel</button>
+          <button class="btn btn-perigo" onclick="hotExcluir('${h.id}')">Excluir hotel</button>
+        </div></div>`;
+    }
+    const foto = h.foto ? '<img src="'+escaparTexto(h.foto)+'" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;min-height:170px;object-fit:cover;border-radius:12px;" onerror="this.style.display=\'none\'">' : '';
+    const btnLink = h.link ? '<a class="btn btn-secundario" href="'+escaparTexto(h.link)+'" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;">📷 Ver fotos e detalhes do hotel</a>' : '';
+    const obs = h.observacoes ? '<p style="white-space:pre-wrap;margin:10px 0 0;">'+escaparTexto(h.observacoes)+'</p>' : '';
+    return `<div class="cartao" style="margin-bottom:18px;display:grid;grid-template-columns:${h.foto ? 'minmax(140px,280px) 1fr' : '1fr'};gap:18px;">
+      ${foto}
+      <div>
+        <h3 style="margin:0 0 4px;color:var(--azul-escuro);">🏨 ${escaparTexto(h.nome)}</h3>
+        <div style="color:var(--texto-suave);margin-bottom:8px;">📍 ${h.endereco ? escaparTexto(h.endereco) : 'Local no mapa'} · <a href="${mapa}" target="_blank" rel="noopener">Ver no mapa</a></div>
+        ${btnLink}
+        ${obs}
+        <table style="width:100%;border-collapse:collapse;margin-top:10px;"><thead><tr><th style="text-align:left;padding:6px 8px;font-size:0.8rem;color:var(--texto-suave);">ACOMODAÇÃO</th><th style="text-align:right;padding:6px 8px;font-size:0.8rem;color:var(--texto-suave);">VALOR</th></tr></thead><tbody>${linhas}</tbody></table>
+        ${areaPais}
+        ${areaGestor}
+      </div></div>`;
+  }).join('');
+}
+
+/* ---------- Cadastro do hotel (diretoria, financeiro, admin) ---------- */
+function hotAbrirForm(id){
+  if(!podeGerirHoteis()) return;
+  const h = id ? hotDados.hoteis.find(x=>x.id === id) : null;
+  hotEditId = h ? h.id : null;
+  hotAcs = h ? h.acomodacoes.map(a=>({tipo:a.tipo, valor:a.valor})) : [{tipo:'Duplo', valor:''},{tipo:'Triplo', valor:''},{tipo:'Quádruplo', valor:''}];
+  abrirModal(`
+    <h3>${h ? 'Editar hotel' : 'Novo hotel'}</h3>
+    <div class="campo"><label>Nome do hotel</label><input type="text" id="hf-nome"></div>
+    <div class="campo"><label>Link do hotel (site, Booking, Instagram...) — os pais veem as fotos por aqui</label><input type="text" id="hf-link" placeholder="https://"></div>
+    <div class="campo"><label>Endereço / local</label><input type="text" id="hf-end"></div>
+    <div class="campo"><label>Foto de capa (link direto de uma imagem — opcional)</label><input type="text" id="hf-foto" placeholder="https://"></div>
+    <div class="campo"><label>Observações (café da manhã, diárias, datas...)</label><textarea id="hf-obs" rows="3"></textarea></div>
+    <div class="campo"><label>Os valores abaixo são</label>
+      <select id="hf-base"><option value="pessoa">por pessoa</option><option value="quarto">por quarto</option><option value="pacote">total do pacote</option></select></div>
+    <div style="font-weight:700;margin:6px 0;">Acomodações e valores</div>
+    <div id="hf-acs"></div>
+    <button class="btn btn-secundario" onclick="hotAddAc()">+ Adicionar acomodação</button>
+    <div class="barra-acoes">
+      <button class="btn btn-primario" onclick="hotSalvarHotel()">Salvar</button>
+      <button class="btn btn-secundario" onclick="fecharModal()">Cancelar</button>
+    </div>`);
+  document.getElementById('hf-nome').value = h ? h.nome : '';
+  document.getElementById('hf-link').value = h ? h.link : '';
+  document.getElementById('hf-end').value = h ? h.endereco : '';
+  document.getElementById('hf-foto').value = h ? h.foto : '';
+  document.getElementById('hf-obs').value = h ? h.observacoes : '';
+  document.getElementById('hf-base').value = h ? h.valorBase : 'pessoa';
+  hotDesenharAcs();
+}
+function hotLerAcs(){
+  const sels = document.querySelectorAll('.hf-tipo'), vals = document.querySelectorAll('.hf-valor');
+  if(sels.length === hotAcs.length) hotAcs = hotAcs.map((a,i)=>({tipo:sels[i].value, valor:vals[i].value}));
+}
+function hotDesenharAcs(){
+  const el = document.getElementById('hf-acs');
+  if(!el) return;
+  el.innerHTML = hotAcs.map((a,i)=>{
+    const tipos = HOT_TIPOS.indexOf(a.tipo) < 0 ? [a.tipo].concat(HOT_TIPOS) : HOT_TIPOS;
+    const ops = tipos.map(t=>'<option'+(t===a.tipo?' selected':'')+'>'+escaparTexto(t)+'</option>').join('');
+    return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+      <select class="hf-tipo" style="flex:1;">${ops}</select>
+      <input class="hf-valor" type="number" min="0" step="0.01" placeholder="Valor R$" value="${a.valor}" style="width:130px;">
+      <button class="btn btn-perigo" onclick="hotDelAc(${i})" title="Remover">✕</button></div>`;
+  }).join('');
+}
+function hotAddAc(){ hotLerAcs(); hotAcs.push({tipo:'Duplo', valor:''}); hotDesenharAcs(); }
+function hotDelAc(i){ hotLerAcs(); hotAcs.splice(i,1); hotDesenharAcs(); }
+async function hotSalvarHotel(){
+  hotLerAcs();
+  const corpo = {
+    nome: document.getElementById('hf-nome').value.trim(),
+    link: document.getElementById('hf-link').value.trim(),
+    endereco: document.getElementById('hf-end').value.trim(),
+    foto: document.getElementById('hf-foto').value.trim(),
+    observacoes: document.getElementById('hf-obs').value.trim(),
+    valorBase: document.getElementById('hf-base').value,
+    acomodacoes: hotAcs.filter(a=>a.tipo && String(a.valor) !== '' && Number(a.valor) >= 0).map(a=>({tipo:a.tipo, valor:Number(a.valor)}))
+  };
+  if(!corpo.nome){ mostrarToast('Informe o nome do hotel.'); return; }
+  if(!corpo.acomodacoes.length){ mostrarToast('Inclua ao menos uma acomodação com valor.'); return; }
+  try{
+    if(hotEditId) await api('hoteis/' + hotEditId, {method:'PUT', corpo});
+    else await api('hoteis', {method:'POST', corpo});
+    fecharModal(); mostrarToast('Hotel salvo.'); renderHoteis();
+  }catch(e){}
+}
+async function hotExcluir(id){
+  if(!confirm('Excluir este hotel e os aceites das famílias? Não dá para desfazer.')) return;
+  try{ await api('hoteis/' + id, {method:'DELETE'}); mostrarToast('Hotel excluído.'); renderHoteis(); }catch(e){}
+}
+async function hotRemoverAceite(hid, rid){
+  if(!confirm('Remover o aceite desta família?')) return;
+  try{ await api('hoteis/' + hid + '/reserva?id=' + rid, {method:'DELETE'}); renderHoteis(); }catch(e){}
+}
+async function hotCancelarAceite(hid){
+  if(!confirm('Cancelar o seu aceite deste hotel?')) return;
+  try{ await api('hoteis/' + hid + '/reserva', {method:'DELETE'}); mostrarToast('Aceite cancelado.'); renderHoteis(); }catch(e){}
+}
+
+/* ---------- Aceite dos pais → ficha dos hóspedes ---------- */
+function hotAceitar(hid){
+  const h = hotDados.hoteis.find(x=>x.id === hid);
+  const sel = document.getElementById('hot-sel-' + hid);
+  if(!h || !sel) return;
+  const ac = h.acomodacoes[Number(sel.value)];
+  hotG = {hotelId:hid, acomodacao:ac.tipo, hospedes:[{nome:usuarioLogado.nome || '', nascimento:''}], contato:''};
+  hotAbrirHospedes();
+}
+function hotEditarHospedes(hid){
+  const r = hotDados.reservas.find(x=>x.hotelId === hid && x.usuarioId === usuarioLogado.id);
+  if(!r) return;
+  hotG = {hotelId:hid, acomodacao:r.acomodacao, hospedes:r.hospedes.map(g=>({nome:g.nome, nascimento:g.nascimento})), contato:r.contato || ''};
+  hotAbrirHospedes();
+}
+function hotAbrirHospedes(){
+  const h = hotDados.hoteis.find(x=>x.id === hotG.hotelId);
+  const ac = h.acomodacoes.find(a=>a.tipo === hotG.acomodacao);
+  const ops = h.acomodacoes.map(a=>'<option'+(a.tipo===ac.tipo?' selected':'')+'>'+escaparTexto(a.tipo)+'</option>').join('');
+  abrirModal(`
+    <h3>Hóspedes — ${escaparTexto(h.nome)}</h3>
+    <p style="margin:0 0 10px;">Valores: <b>${hotMoeda(ac.valor)}</b> ${HOT_BASE[h.valorBase]} (na acomodação escolhida)</p>
+    <div class="campo"><label>Acomodação escolhida</label>
+      <select id="hg-ac" onchange="hotTrocarAc()">${ops}</select></div>
+    <div id="hg-lista"></div>
+    <button class="btn btn-secundario" onclick="hotAddHospede()">+ Adicionar hóspede</button>
+    <div id="hg-resumo" style="margin:10px 0;font-size:0.9rem;"></div>
+    <div class="campo"><label>Telefone / WhatsApp para contato</label><input type="text" id="hg-contato"></div>
+    <div class="barra-acoes">
+      <button class="btn btn-primario" onclick="hotSalvarReserva()">Confirmar aceite</button>
+      <button class="btn btn-secundario" onclick="fecharModal()">Cancelar</button>
+    </div>`);
+  document.getElementById('hg-contato').value = hotG.contato;
+  hotDesenharHospedes();
+}
+function hotLerHospedes(){
+  const ns = document.querySelectorAll('.hg-nome'), ds = document.querySelectorAll('.hg-nasc');
+  if(ns.length === hotG.hospedes.length) hotG.hospedes = hotG.hospedes.map((g,i)=>({nome:ns[i].value, nascimento:ds[i].value}));
+  const c = document.getElementById('hg-contato'); if(c) hotG.contato = c.value;
+}
+function hotTrocarAc(){ hotLerHospedes(); hotG.acomodacao = document.getElementById('hg-ac').value; hotResumo(); }
+function hotDesenharHospedes(){
+  const el = document.getElementById('hg-lista');
+  el.innerHTML = hotG.hospedes.map((g,i)=>`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;padding:10px;background:#faf7f2;border-radius:10px;">
+    <div class="campo" style="flex:2;min-width:160px;margin:0;"><label>Nome completo</label><input type="text" class="hg-nome" value="${escaparTexto(g.nome)}"></div>
+    <div class="campo" style="flex:1;min-width:140px;margin:0;"><label>Nascimento</label><input type="date" class="hg-nasc" value="${g.nascimento}" onchange="hotAtualizarIdade()"></div>
+    <div class="hg-idade" style="min-width:90px;font-weight:700;padding-bottom:10px;"></div>
+    <button class="btn btn-perigo" onclick="hotDelHospede(${i})" title="Remover">✕</button></div>`).join('');
+  hotAtualizarIdade();
+}
+function hotAtualizarIdade(){
+  const ds = document.querySelectorAll('.hg-nasc'), ids = document.querySelectorAll('.hg-idade');
+  ds.forEach((d,i)=>{
+    const id = hotIdade(d.value);
+    ids[i].innerHTML = id === null ? '' : id + ' anos<br><span style="font-size:0.8rem;color:' + (id <= HOT_IDADE_CRIANCA ? 'var(--laranja-forte)' : 'var(--azul-escuro)') + ';">' + hotFaixa(id) + '</span>';
+  });
+  hotResumo();
+}
+function hotResumo(){
+  const el = document.getElementById('hg-resumo');
+  if(!el) return;
+  const ds = [...document.querySelectorAll('.hg-nasc')].map(d=>hotIdade(d.value));
+  const cri = ds.filter(i=>i !== null && i <= HOT_IDADE_CRIANCA).length;
+  const adu = ds.filter(i=>i !== null && i > HOT_IDADE_CRIANCA).length;
+  const sel = document.getElementById('hg-ac');
+  const cap = hotCap(sel ? sel.value : hotG.acomodacao);
+  let txt = ds.length + ' hóspede(s): ' + adu + ' adulto(s) e ' + cri + ' criança(s) (até ' + HOT_IDADE_CRIANCA + ' anos).';
+  if(cap && ds.length > cap) txt += ' <b style="color:var(--erro);">⚠ A acomodação comporta ' + cap + ' pessoa(s).</b>';
+  el.innerHTML = txt;
+}
+function hotAddHospede(){ hotLerHospedes(); hotG.hospedes.push({nome:'', nascimento:''}); hotDesenharHospedes(); }
+function hotDelHospede(i){ hotLerHospedes(); if(hotG.hospedes.length <= 1){ mostrarToast('Informe ao menos um hóspede.'); return; } hotG.hospedes.splice(i,1); hotDesenharHospedes(); }
+async function hotSalvarReserva(){
+  hotLerHospedes();
+  const hs = hotG.hospedes.map(g=>({nome:g.nome.trim(), nascimento:g.nascimento}));
+  if(hs.some(g=>!g.nome || !g.nascimento)){ mostrarToast('Preencha nome e data de nascimento de todos os hóspedes.'); return; }
+  try{
+    await api('hoteis/' + hotG.hotelId + '/reserva', {method:'PUT', corpo:{acomodacao:hotG.acomodacao, hospedes:hs, contato:hotG.contato.trim()}});
+    fecharModal(); mostrarToast('Aceite registrado! O clube já recebeu os dados dos hóspedes.'); renderHoteis();
+  }catch(e){}
+}
+
 const ITENS_MENU = [
   {id:'inicio', rotulo:'Início'},
   {id:'atletas', rotulo:'Atletas', somenteEquipe:true},
@@ -1267,6 +1535,7 @@ const ITENS_MENU = [
   {id:'pagamentos', rotulo:'Pagamentos', somenteEquipe:true},
   {id:'calendario', rotulo:'Calendário'},
   {id:'avisos', rotulo:'Avisos'},
+  {id:'hoteis', rotulo:'Hotéis'},
   {id:'reuniao', rotulo:'Reunião Diretoria', somenteDiretoria:true},
   {id:'reuniao-pais', rotulo:'Reunião Pais', reuniaoPais:true},
   {id:'financeiro', rotulo:'Financeiro', somenteFinanceiro:true},
@@ -2680,6 +2949,7 @@ function irPara(secao){
     pagamentos: renderPagamentos,
     calendario: renderCalendario,
     avisos: renderAvisos,
+    hoteis: renderHoteis,
     reuniao: renderReuniao,
     'reuniao-pais': renderReuniaoPais,
     financeiro: renderFinanceiro,
