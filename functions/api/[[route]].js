@@ -732,6 +732,15 @@ async function tratarUsuarios(request, env, usuario, rota, metodo) {
       .bind(hash, salt, id).run();
     return json({ ok: true });
   }
+  if (metodo === 'PUT' && id) {
+    // Só o administrador (não o financeiro) altera o perfil de um usuário cadastrado.
+    if (usuario.papel !== 'admin') return erro('Apenas o administrador pode alterar o perfil de um usuário.', 403);
+    if (id === usuario.id) return erro('Você não pode alterar o seu próprio perfil.');
+    const c = await request.json();
+    if (['usuario', 'tecnica', 'diretoria', 'financeiro', 'admin'].indexOf(c.papel) < 0) return erro('Perfil inválido.');
+    await env.DB.prepare(`UPDATE usuarios SET papel=? WHERE id=?`).bind(c.papel, id).run();
+    return json({ ok: true });
+  }
   if (metodo === 'DELETE' && id) {
     if (id === usuario.id) return erro('Você não pode excluir o usuário com o qual está logado.');
     const [{ total }] = (await env.DB.prepare(`SELECT COUNT(*) as total FROM usuarios`).all()).results;
