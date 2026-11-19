@@ -2285,10 +2285,10 @@ function reuCartaoSub(it, x, k, r, ed){
   if(ed && reuniaoEdicao) h += '<button type="button" class="reu-x" title="Remover" onclick="reuDel(\''+x.id+'\')">×</button>';
   h += '</div>';
   if(ed){
-    h += '<div class="reu-campos"><input class="reu-in" placeholder="👤 Responsável" value="'+reuEsc(x.responsavel)+'" oninput="reuCampo(\''+x.id+'\',\'responsavel\',this.value)">'
+    h += '<div class="reu-campos"><input class="reu-in" placeholder="👤 Responsável (vazio = toda a diretoria)" value="'+reuEsc(x.responsavel)+'" oninput="reuCampo(\''+x.id+'\',\'responsavel\',this.value)">'
       + '<input class="reu-in" placeholder="✍️ Decisão / encaminhamento" value="'+reuEsc(x.decisao)+'" oninput="reuCampo(\''+x.id+'\',\'decisao\',this.value)"></div>';
-  } else if(x.responsavel || x.decisao){
-    h += '<div class="reu-dec">'+(x.responsavel ? '<span>👤 '+reuEsc(x.responsavel)+'</span>' : '')+(x.decisao ? '<span>✍️ '+reuEsc(x.decisao)+'</span>' : '')+'</div>';
+  } else if(x.responsavel || x.decisao || x.status==='decidido'){
+    h += '<div class="reu-dec">'+((x.responsavel || x.status==='decidido') ? '<span>'+(x.responsavel ? '👤 '+reuEsc(x.responsavel) : '👥 Decidido por toda a diretoria')+'</span>' : '')+(x.decisao ? '<span>✍️ '+reuEsc(x.decisao)+'</span>' : '')+'</div>';
   }
   return h + '</div>';
 }
@@ -2336,7 +2336,7 @@ function reuHtmlResumo(){
   let dec = '';
   d.itens.forEach(function(it){
     it.subitens.forEach(function(x){
-      if(x.status==='decidido') dec += '<li><b>'+reuEsc(it.icone)+' '+reuEsc(it.titulo)+' › '+reuEsc(x.texto)+'</b>'+(x.responsavel ? '<span>👤 '+reuEsc(x.responsavel)+'</span>' : '')+(x.decisao ? '<span>✍️ '+reuEsc(x.decisao)+'</span>' : '')+'</li>';
+      if(x.status==='decidido') dec += '<li><b>'+reuEsc(it.icone)+' '+reuEsc(it.titulo)+' › '+reuEsc(x.texto)+'</b><span>'+(x.responsavel ? '👤 '+reuEsc(x.responsavel) : '👥 Decidido por toda a diretoria')+'</span>'+(x.decisao ? '<span>✍️ '+reuEsc(x.decisao)+'</span>' : '')+'</li>';
     });
   });
   const pap = d.papeis.filter(function(p){return p.nome;}).map(function(p){ return '<li><b>'+reuEsc(p.nome)+'</b><span>'+reuEsc(p.papel || 'a definir')+'</span></li>'; }).join('');
