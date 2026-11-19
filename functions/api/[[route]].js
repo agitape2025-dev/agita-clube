@@ -113,6 +113,7 @@ export async function onRequest(context) {
     if (rota[0] === 'mensalidades') return await tratarMensalidades(request, env, usuario, rota, metodo);
     if (rota[0] === 'valores-mensalidade') return await tratarValoresMensalidade(request, env, usuario, rota, metodo);
     if (rota[0] === 'chamada') return await tratarChamada(request, env, usuario, rota, metodo);
+    if (rota[0] === 'hoteis') return await tratarHoteis(request, env, usuario, rota, metodo);
     if (rota[0] === 'reuniao') return await tratarReuniao(request, env, usuario, rota, metodo);
     if (rota[0] === 'taxas') return await tratarTaxas(request, env, usuario, rota, metodo);
     if (rota[0] === 'despesas') return await tratarDespesas(request, env, usuario, rota, metodo);
@@ -168,6 +169,115 @@ function reuniaoPadrao(tipo) {
     papeis: []
   };
 }
+// ---------------------------------------------------------------------------
+// Hotéis (sugestões do clube + aceite dos pais com lista de hóspedes)
+// ---------------------------------------------------------------------------
+let hoteisPronto = false;
+function hotelUrl(v) {
+  let s = String(v || '').trim().slice(0, 600);
+  if (!s) return '';
+  if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+  return s;
+}
+function hotelDeLinha(l) {
+  let ac = [];
+  try { ac = JSON.parse(l.acomodacoes || '[]'); } catch (e) { ac = []; }
+  return { id: l.id, nome: l.nome, link: l.link || '', endereco: l.endereco || '', foto: l.foto || '', observacoes: l.observacoes || '', valorBase: l.valor_base || 'pessoa', acomodacoes: ac, criadoPor: l.criado_por || '', criadoEm: l.criado_em };
+}
+function reservaDeLinha(l) {
+  let hs = [];
+  try { hs = JSON.parse(l.hospedes || '[]'); } catch (e) { hs = []; }
+  return { id: l.id, hotelId: l.hotel_id, usuarioId: l.usuario_id, usuarioNome: l.usuario_nome || '', acomodacao: l.acomodacao, valor: l.valor, contato: l.contato || '', hospedes: hs, criadoEm: l.criado_em, atualizadoEm: l.atualizado_em };
+}
+function hotelValidar(c) {
+  c = c || {};
+  const nome = String(c.nome || '').trim().slice(0, 120);
+  if (!nome) return { erro: 'Informe o nome do hotel.' };
+  const base = ['pessoa', 'quarto', 'pacote'].indexOf(c.valorBase) >= 0 ? c.valorBase : 'pessoa';
+  const acs = (Array.isArray(c.acomodacoes) ? c.acomodacoes : []).slice(0, 15)
+    .map(a => ({ tipo: String((a && a.tipo) || '').trim().slice(0, 40), valor: Math.round(Number(a && a.valor) * 100) / 100 }))
+    .filter(a => a.tipo && isFinite(a.valor) && a.valor >= 0);
+  if (!acs.length) return { erro: 'Inclua ao menos um tipo de acomodação com valor.' };
+  return { v: { nome: nome, link: hotelUrl(c.link), endereco: String(c.endereco || '').trim().slice(0, 300), foto: hotelUrl(c.foto), observacoes: String(c.observacoes || '').trim().slice(0, 2000), base: base, acs: acs } };
+}
+async function tratarHoteis(request, env, usuario, rota, metodo) {
+  if (!hoteisPronto) {
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS hoteis (id TEXT PRIMARY KEY, nome TEXT NOT NULL, link TEXT, endereco TEXT, foto TEXT, observacoes TEXT, valor_base TEXT, acomodacoes TEXT NOT NULL, criado_por TEXT, criado_em TEXT)").run();
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS hotel_reservas (id TEXT PRIMARY KEY, hotel_id TEXT NOT NULL, usuario_id TEXT NOT NULL, usuario_nome TEXT, acomodacao TEXT NOT NULL, valor REAL, contato TEXT, hospedes TEXT NOT NULL, criado_em TEXT, atualizado_em TEXT)").run();
+    hoteisPronto = true;
+  }
+  const agora = new Date().toISOString();
+  const gestor = ['admin', 'diretoria', 'financeiro'].indexOf(usuario.papel) >= 0;
+  const negado = () => erro('Apenas diretoria, financeiro e administrador gerenciam os hotéis.', 403);
+  const hid = rota[1] || null;
+  if (!hid) {
+    if (metodo === 'GET') {
+      const hs = await env.DB.prepare("SELECT * FROM hoteis ORDER BY criado_em DESC").all();
+      const rs = gestor
+        ? await env.DB.prepare("SELECT * FROM hotel_reservas ORDER BY criado_em ASC").all()
+        : await env.DB.prepare("SELECT * FROM hotel_reservas WHERE usuario_id = ?").bind(usuario.id).all();
+      return json({ hoteis: (hs.results || []).map(hotelDeLinha), reservas: (rs.results || []).map(reservaDeLinha), podeGerir: gestor });
+    }
+    if (metodo === 'POST') {
+      if (!gestor) return negado();
+      const corpo = await request.json().catch(() => ({}));
+      const r = hotelValidar(corpo);
+      if (r.erro) return erro(r.erro);
+      const novo = gerarId('htl');
+      await env.DB.prepare("INSERT INTO hoteis (id, nome, link, endereco, foto, observacoes, valor_base, acomodacoes, criado_por, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(novo, r.v.nome, r.v.link, r.v.endereco, r.v.foto, r.v.observacoes, r.v.base, JSON.stringify(r.v.acs), usuario.nome || usuario.usuario, agora).run();
+      return json({ ok: true, id: novo });
+    }
+    return erro('Método não permitido.', 405);
+  }
+  if (rota[2] === 'reserva') {
+    const linhaH = await env.DB.prepare("SELECT * FROM hoteis WHERE id = ?").bind(hid).first();
+    if (!linhaH) return erro('Hotel não encontrado.', 404);
+    if (metodo === 'PUT') {
+      const hotel = hotelDeLinha(linhaH);
+      const corpo = await request.json().catch(() => ({}));
+      const ac = hotel.acomodacoes.find(a => a.tipo === String((corpo && corpo.acomodacao) || ''));
+      if (!ac) return erro('Escolha uma acomodação válida.');
+      const hs = (Array.isArray(corpo.hospedes) ? corpo.hospedes : []).slice(0, 12)
+        .map(x => ({ nome: String((x && x.nome) || '').trim().slice(0, 120), nascimento: String((x && x.nascimento) || '').slice(0, 10) }))
+        .filter(x => x.nome && /^\d{4}-\d{2}-\d{2}$/.test(x.nascimento));
+      if (!hs.length) return erro('Informe ao menos um hóspede com nome e data de nascimento.');
+      const contato = String((corpo && corpo.contato) || '').trim().slice(0, 60);
+      const ex = await env.DB.prepare("SELECT id FROM hotel_reservas WHERE hotel_id = ? AND usuario_id = ?").bind(hid, usuario.id).first();
+      if (ex) {
+        await env.DB.prepare("UPDATE hotel_reservas SET acomodacao = ?, valor = ?, contato = ?, hospedes = ?, usuario_nome = ?, atualizado_em = ? WHERE id = ?")
+          .bind(ac.tipo, ac.valor, contato, JSON.stringify(hs), usuario.nome || usuario.usuario, agora, ex.id).run();
+      } else {
+        await env.DB.prepare("INSERT INTO hotel_reservas (id, hotel_id, usuario_id, usuario_nome, acomodacao, valor, contato, hospedes, criado_em, atualizado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+          .bind(gerarId('hrs'), hid, usuario.id, usuario.nome || usuario.usuario, ac.tipo, ac.valor, contato, JSON.stringify(hs), agora, agora).run();
+      }
+      return json({ ok: true });
+    }
+    if (metodo === 'DELETE') {
+      const rid = new URL(request.url).searchParams.get('id');
+      if (rid && gestor) await env.DB.prepare("DELETE FROM hotel_reservas WHERE id = ? AND hotel_id = ?").bind(rid, hid).run();
+      else await env.DB.prepare("DELETE FROM hotel_reservas WHERE hotel_id = ? AND usuario_id = ?").bind(hid, usuario.id).run();
+      return json({ ok: true });
+    }
+    return erro('Método não permitido.', 405);
+  }
+  if (!gestor) return negado();
+  if (metodo === 'PUT') {
+    const corpo = await request.json().catch(() => ({}));
+    const r = hotelValidar(corpo);
+    if (r.erro) return erro(r.erro);
+    await env.DB.prepare("UPDATE hoteis SET nome = ?, link = ?, endereco = ?, foto = ?, observacoes = ?, valor_base = ?, acomodacoes = ? WHERE id = ?")
+      .bind(r.v.nome, r.v.link, r.v.endereco, r.v.foto, r.v.observacoes, r.v.base, JSON.stringify(r.v.acs), hid).run();
+    return json({ ok: true });
+  }
+  if (metodo === 'DELETE') {
+    await env.DB.prepare("DELETE FROM hotel_reservas WHERE hotel_id = ?").bind(hid).run();
+    await env.DB.prepare("DELETE FROM hoteis WHERE id = ?").bind(hid).run();
+    return json({ ok: true });
+  }
+  return erro('Método não permitido.', 405);
+}
+
 async function tratarReuniao(request, env, usuario, rota, metodo) {
   const tipoReq = new URL(request.url).searchParams.get('tipo') === 'pais' ? 'pais' : 'principal';
   const ehTec = usuario.papel === 'tecnica';
