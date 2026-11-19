@@ -2156,7 +2156,7 @@ const REU_FRASES = [
 ];
 const REU_REACOES = ['Boa! Vamos debater 💬', 'O que vocês acham? 🤔', 'Anotado! ✍️', 'Próximo ponto! 👀', 'Opiniões, pessoal! 🗣️'];
 const REU_REACOES_G = ['Cocoricó! Boa ideia! 🐔', 'Eu também quero opinar! 🐔', 'Time AGITA! 💪', 'Anotado, anotado! ✍️🐔', 'Isso vai dar certo! 🐔'];
-function podeVerReuniao(){ return !!usuarioLogado && (usuarioLogado.papel==='admin' || usuarioLogado.papel==='diretoria'); }
+function podeVerReuniao(){ return !!usuarioLogado && (usuarioLogado.papel==='admin' || usuarioLogado.papel==='diretoria' || usuarioLogado.papel==='financeiro'); }
 function reuAtivos(){ return MASCOTE_VENCEDORA==='gloria' ? ['gloria'] : MASCOTE_VENCEDORA==='ginger' ? ['ginger'] : ['ginger','gloria']; }
 function reuEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function reuAchar(id){ for(const it of reuniao.dados.itens){ const x = it.subitens.find(function(s){return s.id===id;}); if(x) return x; } return null; }
