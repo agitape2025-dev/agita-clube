@@ -1278,6 +1278,13 @@ async function tratarFardamentos(request, env, usuario, rota, metodo) {
     return json({ ok: true, id: novo });
   }
 
+  if (recurso === 'pedidos' && id && metodo === 'DELETE') {
+    if (!fin) return erro('Apenas administrador e financeiro removem pedidos do histórico.', 403);
+    const r = await env.DB.prepare("DELETE FROM fard_pedidos WHERE id = ? AND status IN ('cancelado','recusado')").bind(id).run();
+    if (!r.meta || r.meta.changes < 1) return erro('Só é possível remover pedidos cancelados ou recusados.');
+    return json({ ok: true });
+  }
+
   if (recurso === 'pedidos' && id && metodo === 'PATCH') {
     const c = await request.json().catch(function () { return {}; });
     const acao = c.acao;
