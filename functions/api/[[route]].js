@@ -1117,13 +1117,15 @@ const FARD_TAM_CAMISA = ['6', '8', '10', '12', '14', '16', 'Baby Look', 'P', 'M'
 const FARD_LINHAS = {
   'Esquente': ['P', 'M', 'G'],
   'Top': FARD_TAM_ROUPA, 'Short': FARD_TAM_ROUPA, 'Camiseta': FARD_TAM_ROUPA,
-  'Camisa Azul': FARD_TAM_CAMISA, 'Camisa Laranja': FARD_TAM_CAMISA
+  'Camisa Azul': FARD_TAM_CAMISA, 'Camisa Laranja': FARD_TAM_CAMISA,
+  'Sapatilha': ['P', 'M', 'G']
 };
 const FARD_PRODUTOS = {
   'Esquente': ['Esquente'],
   'Conjunto de Treino': ['Top', 'Short', 'Camiseta'],
   'Camisa Azul': ['Camisa Azul'],
-  'Camisa Laranja': ['Camisa Laranja']
+  'Camisa Laranja': ['Camisa Laranja'],
+  'Sapatilha': ['Sapatilha']
 };
 const FARD_GESTORES = ['admin', 'diretoria', 'financeiro'];
 let fardamentosPronto = false;
