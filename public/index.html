@@ -942,6 +942,23 @@ nav.menu-desktop .menu-sub button{text-align:left;width:100%;}
 #menu-mobile::after{background-position:16px top;}
 .modal-caixa::after{background-position:3px top;}
 .ginger-corpo{background-position:5px top;}
+
+/* fardamentos */
+.fard-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:12px;margin-top:14px}
+.fard-tile{border:1.5px solid #f0e2cf;border-radius:16px;padding:14px;background:#fffdf9;display:flex;flex-direction:column;gap:6px;align-items:flex-start;transition:transform .15s,box-shadow .15s}
+.fard-tile:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.08)}
+.fard-tile.esgotado{opacity:.78;background:#f6f4f1}
+.fard-tile>.btn{width:100%}
+.fard-tile .btn[disabled]{opacity:.5;cursor:not-allowed}
+.fard-tam{font-size:2.1rem;font-weight:800;color:var(--azul-escuro);line-height:1}
+.fard-preco{font-weight:700;color:var(--laranja-forte)}
+.fard-obs{font-size:.8rem;color:var(--texto-suave)}
+.fard-ajuste{display:flex;align-items:center;gap:12px;margin-top:4px}
+.fard-ajuste .btn{padding:2px 14px;font-size:1.1rem}
+.fard-mini{display:flex;gap:6px;flex-wrap:wrap}
+.fard-mini .btn{padding:4px 10px;font-size:.78rem}
+.fard-tile.mudou{animation:fardPisca 1.6s ease-out}
+@keyframes fardPisca{0%{box-shadow:0 0 0 0 rgba(242,140,40,.85);background:#fff0d6}100%{box-shadow:0 0 0 14px rgba(242,140,40,0)}}
 </style>
 </head>
 <body>
@@ -1336,6 +1353,7 @@ function finalizarLogin(mostrarSaudacao){
   montarMenu();
   irPara(secaoInicial());
   atualizarBadgeAvisos();
+  fardChecarPendentes();
   if(mostrarSaudacao) mostrarSaudacaoLogin();
 }
 async function sair(){
@@ -1678,6 +1696,315 @@ async function salvarGeneroUsuario(){
   fecharModal(); await carregarUsuarios(); mostrarToast('Gênero atualizado.');
 }
 
+/* ================================================================
+   FARDAMENTOS — estoque por tipo e tamanho + pedidos das famílias (reserva em tempo real)
+   ================================================================ */
+let fardDados = {itens:[], pedidos:[], podeGerir:false, podePedir:true, verPag:false};
+let fardTimer = null, fardEditId = null, fardPedItem = null, fardFiltro = 'todos', fardPendAnt = null, fardAssin = '', fardQtdAnt = null;
+const FARD_TIPOS = ['Esquenta','Conjunto de Treino'];
+const FARD_TAMS_SUG = ['P','M','G'];
+const FARD_TAMS_ORDEM = ['PP','P','M','G','GG'];
+const FARD_SUB = {'Conjunto de Treino':'Top + Bermuda'};
+const FARD_STATUS = {
+  pendente:['Aguardando aceite','#fff3cd','#8a6d00'],
+  aceito:['Aceito','#dbeafe','#1e4fa3'],
+  entregue:['Entregue','#d6f2e0','#1c7a46'],
+  recusado:['Recusado','#fde0e0','#a52a2a'],
+  cancelado:['Cancelado','#ececec','#666666']
+};
+function fardGestor(){ return !!usuarioLogado && ['admin','diretoria','financeiro'].indexOf(usuarioLogado.papel) >= 0; }
+function fardMoeda(v){ return (Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+function fardOrdemTam(t){ const i = FARD_TAMS_ORDEM.indexOf(t); return i < 0 ? 99 : i; }
+function fardChip(txt, bg, cor){ return '<span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:.78rem;font-weight:700;background:'+bg+';color:'+cor+';">'+txt+'</span>'; }
+
+async function renderFardamentos(){
+  const c = document.getElementById('conteudo');
+  c.innerHTML = '<div class="cartao">Carregando...</div>';
+  try{ fardDados = await api('fardamentos'); }catch(e){ return; }
+  fardAssin = JSON.stringify([fardDados.itens, fardDados.pedidos]);
+  fardQtdAnt = null;
+  const gest = fardGestor();
+  c.innerHTML =
+    '<div class="cabecalho-secao"><div><h2>Fardamentos</h2><p>' +
+    (gest ? 'Controle o estoque por tipo e tamanho, aceite os pedidos das famílias e acompanhe as entregas. Tudo se atualiza em tempo real.'
+          : 'Veja o que está disponível, escolha o tamanho e faça o seu pedido. A peça fica reservada para você na hora, e os outros pais já veem o estoque atualizado.') +
+    '</p></div>' + (gest ? '<button class="btn btn-primario" onclick="fardAbrirItem()">+ Novo item</button>' : '') + '</div>' +
+    '<div id="fard-aviso"></div><div id="fard-estoque"></div><div id="fard-pedidos"></div>';
+  fardDesenhar();
+  fardIniciarTempoReal();
+}
+
+function fardEstoqueHtml(){
+  const gest = fardGestor();
+  if(!fardDados.itens.length){
+    return '<div class="cartao"><div class="vazio">' + (gest
+      ? 'Nenhum item no estoque ainda. Clique em "+ Novo item" para cadastrar o primeiro (ex.: Esquenta, tamanho P).'
+      : 'O estoque de fardamentos ainda não foi cadastrado. Assim que o clube publicar, ele aparece aqui.') + '</div></div>';
+  }
+  const mapa = {};
+  fardDados.itens.forEach(function(i){ (mapa[i.tipo] = mapa[i.tipo] || []).push(i); });
+  const tipos = Object.keys(mapa).sort(function(a,b){
+    const ia = FARD_TIPOS.indexOf(a), ib = FARD_TIPOS.indexOf(b);
+    return (ia<0?99:ia) - (ib<0?99:ib) || a.localeCompare(b);
+  });
+  return tipos.map(function(tp){
+    const lista = mapa[tp].slice().sort(function(a,b){ return fardOrdemTam(a.tamanho) - fardOrdemTam(b.tamanho) || a.tamanho.localeCompare(b.tamanho); });
+    const total = lista.reduce(function(s,i){ return s + i.quantidade; }, 0);
+    return '<div class="cartao" style="margin-bottom:16px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;">' +
+      '<h3 style="margin:0;color:var(--azul-escuro);">' + escaparTexto(tp) + '</h3>' +
+      '<span style="color:var(--texto-suave);font-size:.85rem;">' + (FARD_SUB[tp] ? escaparTexto(FARD_SUB[tp]) + ' · ' : '') + total + ' un. disponíveis</span></div>' +
+      '<div class="fard-grade">' + lista.map(fardTileHtml).join('') + '</div></div>';
+  }).join('');
+}
+
+function fardTileHtml(i){
+  const gest = fardGestor();
+  const q = i.quantidade;
+  const chip = q < 1 ? fardChip('Esgotado','#fde0e0','#a52a2a')
+    : (q <= 3 ? fardChip('Restam '+q,'#fff3cd','#8a6d00') : fardChip(q+' disponíveis','#d6f2e0','#1c7a46'));
+  let acao = '';
+  if(gest){
+    acao += '<div class="fard-ajuste"><button class="btn btn-secundario" title="Tirar 1 do estoque" data-id="'+i.id+'" onclick="fardAjustar(this.dataset.id,-1)">−</button>' +
+      '<b>'+q+'</b><button class="btn btn-secundario" title="Entrada de 1 no estoque" data-id="'+i.id+'" onclick="fardAjustar(this.dataset.id,1)">+</button></div>' +
+      '<div class="fard-mini"><button class="btn btn-secundario" data-id="'+i.id+'" onclick="fardAbrirItem(this.dataset.id)">Editar</button>' +
+      '<button class="btn btn-perigo" data-id="'+i.id+'" onclick="fardExcluirItem(this.dataset.id)">Excluir</button></div>';
+  }
+  if(fardDados.podePedir){
+    acao += '<button class="btn btn-primario" style="margin-top:6px;" data-id="'+i.id+'"' + (q<1 ? ' disabled' : '') + ' onclick="fardAbrirPedido(this.dataset.id)">' + (q<1 ? 'Esgotado' : 'Fazer pedido') + '</button>';
+  }
+  return '<div class="fard-tile' + (q<1 ? ' esgotado' : '') + '" data-tile="'+i.id+'">' +
+    '<div class="fard-tam">' + escaparTexto(i.tamanho) + '</div><div class="fard-preco">' + fardMoeda(i.preco) + '</div>' + chip +
+    (i.observacao ? '<div class="fard-obs">' + escaparTexto(i.observacao) + '</div>' : '') + acao + '</div>';
+}
+
+function fardDesenhar(){
+  const e = document.getElementById('fard-estoque');
+  if(!e) return;
+  const antes = fardQtdAnt;
+  fardQtdAnt = {};
+  fardDados.itens.forEach(function(i){ fardQtdAnt[i.id] = i.quantidade; });
+  e.innerHTML = fardEstoqueHtml();
+  document.getElementById('fard-pedidos').innerHTML = fardPedidosHtml();
+  if(antes){
+    fardDados.itens.forEach(function(i){
+      if(antes[i.id] !== undefined && antes[i.id] !== i.quantidade){
+        const t = e.querySelector('[data-tile="'+i.id+'"]');
+        if(t) t.classList.add('mudou');
+      }
+    });
+  }
+  const pend = fardDados.pedidos.filter(function(p){ return p.status === 'pendente'; }).length;
+  const av = document.getElementById('fard-aviso');
+  if(av){
+    av.innerHTML = (fardGestor() && pend > 0)
+      ? '<div class="cartao" style="margin-bottom:16px;background:#fff4e0;border:2px dashed #f2b66b;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;"><b>🔔 ' + pend + (pend === 1 ? ' pedido aguardando' : ' pedidos aguardando') + ' o seu aceite</b><button class="btn btn-primario" onclick="fardFiltro=\'pendente\';fardDesenhar()">Ver pedidos</button></div>'
+      : '';
+  }
+  if(fardGestor()){ fardPendAnt = pend; fardAtualizarBadge(pend); }
+}
+
+function fardPedidosHtml(){
+  const gest = fardGestor();
+  const lista = fardDados.pedidos;
+  const filtros = [['todos','Todos'],['pendente','Aguardando aceite'],['aceito','Aceitos'],['entregue','Entregues'],['encerrado','Recusados / cancelados']];
+  const vis = lista.filter(function(p){
+    if(fardFiltro === 'todos') return true;
+    if(fardFiltro === 'encerrado') return p.status === 'recusado' || p.status === 'cancelado';
+    return p.status === fardFiltro;
+  });
+  let h = '<div class="cabecalho-secao" style="margin-top:26px;"><div><h2 style="font-size:1.3rem;">' + (gest ? 'Pedidos das famílias' : 'Meus pedidos') + '</h2></div>' +
+    (lista.length ? '<select onchange="fardFiltro=this.value;fardDesenhar()" style="max-width:230px;">' +
+      filtros.map(function(f){ return '<option value="'+f[0]+'"' + (f[0] === fardFiltro ? ' selected' : '') + '>' + f[1] + '</option>'; }).join('') + '</select>' : '') + '</div>';
+  if(!vis.length){
+    h += '<div class="cartao"><div class="vazio">' + (lista.length ? 'Nenhum pedido neste filtro.'
+      : (gest ? 'Ainda não há pedidos. Quando uma família pedir, você recebe a notificação.' : 'Você ainda não fez nenhum pedido.')) + '</div></div>';
+  } else {
+    h += vis.map(fardPedidoHtml).join('');
+  }
+  return h;
+}
+
+function fardPedidoHtml(p){
+  const gest = fardGestor();
+  const fin = podeVerFinanceiro();
+  const st = FARD_STATUS[p.status] || [p.status,'#eeeeee','#444444'];
+  let chips = fardChip(st[0], st[1], st[2]);
+  if(p.pagamento === 'pago') chips += ' ' + fardChip('Pago','#d6f2e0','#1c7a46');
+  else if(p.pagamento === 'pendente' && (p.status === 'aceito' || p.status === 'entregue')) chips += ' ' + fardChip('Pagamento pendente','#fff3cd','#8a6d00');
+  let quando = '';
+  try{ quando = new Date(p.criadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}); }catch(e){}
+  const bt = function(rot, cls, acao, msg){
+    return '<button class="btn ' + cls + '" data-id="' + p.id + '" data-acao="' + acao + '"' + (msg ? ' data-msg="' + msg + '"' : '') + ' onclick="fardAcaoBtn(this)">' + rot + '</button>';
+  };
+  let acoes = '';
+  if(gest && p.status === 'pendente') acoes += bt('Aceitar','btn-primario','aceitar') + bt('Recusar','btn-perigo','recusar','Recusar este pedido? O estoque reservado volta para a prateleira.');
+  if(gest && p.status === 'aceito') acoes += bt('Marcar como entregue','btn-secundario','entregar');
+  if(fin && p.pagamento === 'pendente' && (p.status === 'aceito' || p.status === 'entregue')) acoes += bt('Marcar como pago','btn-primario','pagar');
+  if(fin && p.pagamento === 'pago') acoes += bt('Desfazer pagamento','btn-secundario','estornar','Desfazer o pagamento deste pedido?');
+  if((gest && p.status === 'aceito') || (!gest && p.status === 'pendente')) acoes += bt('Cancelar pedido','btn-perigo','cancelar','Cancelar este pedido? O estoque reservado será devolvido.');
+  const destaque = (gest && p.status === 'pendente') ? 'border:2px solid #f2b66b;' : '';
+  return '<div class="cartao fard-pedido" style="margin-bottom:12px;' + destaque + '">' +
+    '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start;">' +
+    '<div><b style="font-size:1.05rem;color:var(--azul-escuro);">' + p.quantidade + '× ' + escaparTexto(p.tipo) + ' · ' + escaparTexto(p.tamanho) + '</b>' +
+    '<div style="color:var(--texto-suave);font-size:.88rem;margin-top:2px;">Atleta: <b>' + escaparTexto(p.atleta) + '</b>' + (gest ? ' · Pedido por ' + escaparTexto(p.usuarioNome) : '') + ' · ' + quando + '</div>' +
+    (p.obs ? '<div style="font-size:.85rem;margin-top:4px;">“' + escaparTexto(p.obs) + '”</div>' : '') + '</div>' +
+    '<div style="text-align:right;"><div style="font-weight:800;font-size:1.1rem;color:var(--azul-escuro);">' + fardMoeda(p.valorTotal) + '</div><div style="margin-top:6px;">' + chips + '</div></div></div>' +
+    (acoes ? '<div class="barra-acoes" style="margin-top:10px;">' + acoes + '</div>' : '') + '</div>';
+}
+
+/* ---------- ações ---------- */
+function fardAcaoBtn(b){ fardAcao(b.dataset.id, b.dataset.acao, b.dataset.msg); }
+async function fardAcao(id, acao, msg){
+  if(msg && !confirm(msg)) return;
+  try{ await api('fardamentos/pedidos/' + id, {method:'PATCH', corpo:{acao:acao}}); }
+  catch(e){ await fardCarregar(); return; }
+  const m = {aceitar:'Pedido aceito! A cobrança já foi enviada ao Financeiro.', recusar:'Pedido recusado e estoque devolvido.', entregar:'Entrega registrada.', pagar:'Pagamento registrado.', estornar:'Pagamento desfeito.', cancelar:'Pedido cancelado e estoque devolvido.'};
+  mostrarToast(m[acao] || 'Pronto!');
+  await fardCarregar();
+}
+async function fardAjustar(id, d){
+  try{ await api('fardamentos/itens/' + id, {method:'PATCH', corpo:{delta:d}}); }catch(e){}
+  await fardCarregar();
+}
+async function fardExcluirItem(id){
+  const it = fardDados.itens.find(function(x){ return x.id === id; });
+  if(!it || !confirm('Excluir ' + it.tipo + ' ' + it.tamanho + ' do estoque? Os pedidos já feitos continuam registrados.')) return;
+  try{ await api('fardamentos/itens/' + id, {method:'DELETE'}); mostrarToast('Item excluído.'); }catch(e){}
+  await fardCarregar();
+}
+
+/* ---------- cadastro / edição de item (quem controla) ---------- */
+function fardAbrirItem(id){
+  if(!fardGestor()) return;
+  const it = id ? fardDados.itens.find(function(x){ return x.id === id; }) : null;
+  fardEditId = it ? it.id : null;
+  abrirModal('<h3>' + (it ? 'Editar item' : 'Novo item de fardamento') + '</h3>' +
+    '<div class="campo"><label>Tipo</label><input type="text" id="fi-tipo" list="fi-tipos" maxlength="40" placeholder="Esquenta ou Conjunto de Treino"><datalist id="fi-tipos">' +
+      FARD_TIPOS.map(function(x){ return '<option value="' + x + '">'; }).join('') + '</datalist></div>' +
+    '<div class="campo"><label>Tamanho</label><input type="text" id="fi-tam" list="fi-tams" maxlength="10" placeholder="P, M ou G"><datalist id="fi-tams">' +
+      FARD_TAMS_SUG.map(function(x){ return '<option value="' + x + '">'; }).join('') + '</datalist></div>' +
+    '<div class="campo"><label>Quantidade disponível em estoque</label><input type="number" id="fi-qtd" min="0" step="1"></div>' +
+    '<div class="campo"><label>Valor de cada unidade (R$)</label><input type="text" id="fi-preco" inputmode="decimal" placeholder="0,00"></div>' +
+    '<div class="campo"><label>Observação (opcional)</label><input type="text" id="fi-obs" maxlength="200"></div>' +
+    '<p style="font-size:.85rem;color:var(--texto-suave);">O Conjunto de Treino (Top + Bermuda) é controlado como uma unidade só. A quantidade informada já deve descontar o que está reservado em pedidos.</p>' +
+    '<div class="barra-acoes"><button class="btn btn-primario" onclick="fardSalvarItem()">Salvar</button><button class="btn btn-secundario" onclick="fecharModal()">Cancelar</button></div>');
+  document.getElementById('fi-tipo').value = it ? it.tipo : '';
+  document.getElementById('fi-tam').value = it ? it.tamanho : '';
+  document.getElementById('fi-qtd').value = it ? it.quantidade : '';
+  document.getElementById('fi-preco').value = it ? String(it.preco).replace('.', ',') : '';
+  document.getElementById('fi-obs').value = it ? it.observacao : '';
+}
+async function fardSalvarItem(){
+  const corpo = {
+    tipo: document.getElementById('fi-tipo').value,
+    tamanho: document.getElementById('fi-tam').value,
+    quantidade: document.getElementById('fi-qtd').value,
+    preco: document.getElementById('fi-preco').value,
+    observacao: document.getElementById('fi-obs').value
+  };
+  try{
+    if(fardEditId) await api('fardamentos/itens/' + fardEditId, {method:'PUT', corpo:corpo});
+    else await api('fardamentos/itens', {method:'POST', corpo:corpo});
+  }catch(e){ return; }
+  fecharModal();
+  mostrarToast('Estoque atualizado!');
+  await fardCarregar();
+}
+
+/* ---------- pedido da família ---------- */
+function fardAbrirPedido(id){
+  const it = fardDados.itens.find(function(x){ return x.id === id; });
+  if(!it || it.quantidade < 1){ mostrarToast('Esse item está esgotado.'); return; }
+  fardPedItem = it;
+  const max = Math.min(it.quantidade, 10);
+  let ultimo = '';
+  try{ ultimo = localStorage.getItem('agita_fard_atleta') || ''; }catch(e){}
+  let ops = '';
+  for(let n = 1; n <= max; n++) ops += '<option value="' + n + '">' + n + '</option>';
+  abrirModal('<h3>Fazer pedido</h3>' +
+    '<div style="background:#fff7ea;border-radius:12px;padding:12px 14px;margin-bottom:12px;"><b>' + escaparTexto(it.tipo) + ' · tamanho ' + escaparTexto(it.tamanho) + '</b><br>' +
+    '<span style="color:var(--texto-suave);">' + fardMoeda(it.preco) + ' cada · restam ' + it.quantidade + '</span></div>' +
+    '<div class="campo"><label>Quantidade</label><select id="fp-qtd" onchange="fardAtualizarTotal()">' + ops + '</select></div>' +
+    '<div class="campo"><label>Nome da atleta que vai usar</label><input type="text" id="fp-atleta" maxlength="80"></div>' +
+    '<div class="campo"><label>Observação (opcional)</label><input type="text" id="fp-obs" maxlength="200" placeholder="Ex.: urgência, dúvida de tamanho..."></div>' +
+    '<div style="font-weight:800;font-size:1.1rem;color:var(--azul-escuro);margin:6px 0;">Total: <span id="fp-total"></span></div>' +
+    '<p style="font-size:.85rem;color:var(--texto-suave);">Ao confirmar, a peça já fica reservada para você. A diretoria vai analisar e aceitar o pedido; depois do aceite o valor aparece para pagamento.</p>' +
+    '<div class="barra-acoes"><button class="btn btn-primario" id="fp-ok" onclick="fardConfirmarPedido()">Confirmar pedido</button><button class="btn btn-secundario" onclick="fecharModal()">Cancelar</button></div>');
+  document.getElementById('fp-atleta').value = ultimo;
+  fardAtualizarTotal();
+}
+function fardAtualizarTotal(){
+  const q = Number(document.getElementById('fp-qtd').value) || 1;
+  document.getElementById('fp-total').textContent = fardMoeda(fardPedItem.preco * q);
+}
+async function fardConfirmarPedido(){
+  const atleta = document.getElementById('fp-atleta').value.trim();
+  if(!atleta){ mostrarToast('Informe o nome da atleta que vai usar o fardamento.'); return; }
+  const btn = document.getElementById('fp-ok'); btn.disabled = true;
+  try{
+    await api('fardamentos/pedidos', {method:'POST', corpo:{itemId:fardPedItem.id, quantidade:document.getElementById('fp-qtd').value, atleta:atleta, obs:document.getElementById('fp-obs').value}});
+  }catch(e){ fecharModal(); await fardCarregar(); return; }
+  try{ localStorage.setItem('agita_fard_atleta', atleta); }catch(e){}
+  fecharModal();
+  mostrarToast('Pedido feito! A peça está reservada para você.');
+  await fardCarregar();
+}
+
+/* ---------- tempo real, selo do menu e aviso de novos pedidos ---------- */
+async function fardCarregar(silencioso){
+  let d;
+  try{
+    if(silencioso){
+      const r = await fetch('/api/fardamentos', {credentials:'include'});
+      if(!r.ok) return;
+      d = await r.json();
+    } else {
+      d = await api('fardamentos');
+    }
+  }catch(e){ return; }
+  const assin = JSON.stringify([d.itens, d.pedidos]);
+  if(silencioso && assin === fardAssin) return;
+  fardAssin = assin; fardDados = d;
+  if(secaoAtual === 'fardamentos') fardDesenhar();
+}
+function fardIniciarTempoReal(){
+  if(fardTimer) clearInterval(fardTimer);
+  fardTimer = setInterval(function(){
+    if(secaoAtual !== 'fardamentos' || document.hidden) return;
+    const fundo = document.getElementById('modal-fundo');
+    if(fundo && fundo.style.display === 'flex') return;
+    fardCarregar(true);
+  }, 6000);
+}
+function fardAtualizarBadge(n){
+  const marca = function(b){
+    let s = b.querySelector('.bolinha-novo');
+    if(n > 0){
+      if(!s){ s = document.createElement('span'); s.className = 'bolinha-novo'; b.appendChild(s); }
+      s.textContent = n > 9 ? '9+' : String(n);
+    } else if(s){ s.remove(); }
+  };
+  document.querySelectorAll('#menu-desktop button[data-secao="fardamentos"], #menu-mobile button[data-secao="fardamentos"]').forEach(function(b){
+    marca(b);
+    const g = b.closest('.menu-grupo');
+    if(g) marca(g.querySelector('.menu-grupo-btn'));
+  });
+}
+async function fardChecarPendentes(){
+  if(typeof usuarioLogado === 'undefined' || !usuarioLogado || !fardGestor() || document.hidden) return;
+  let d;
+  try{
+    const r = await fetch('/api/fardamentos/alerta', {credentials:'include'});
+    if(!r.ok) return;
+    d = await r.json();
+  }catch(e){ return; }
+  const n = d.pendentes || 0;
+  if(fardPendAnt !== null && n > fardPendAnt) mostrarToast('🔔 Novo pedido de fardamento aguardando aceite!');
+  fardPendAnt = n;
+  fardAtualizarBadge(n);
+}
+setInterval(fardChecarPendentes, 30000);
 const ITENS_MENU = [
   {id:'inicio', rotulo:'Início'},
   {id:'atletas', rotulo:'Atletas', somenteEquipe:true},
@@ -1687,6 +2014,7 @@ const ITENS_MENU = [
   {id:'calendario', rotulo:'Calendário'},
   {id:'avisos', rotulo:'Avisos'},
   {id:'hoteis', rotulo:'Hotéis'},
+  {id:'fardamentos', rotulo:'Fardamentos'},
   {id:'missao', rotulo:'Missão e Valores'},
   {id:'reuniao', rotulo:'Reunião Diretoria', somenteDiretoria:true},
   {id:'reuniao-pais', rotulo:'Reunião Pais', reuniaoPais:true},
@@ -1696,7 +2024,7 @@ const ITENS_MENU = [
 /* Menu organizado por categorias (menus suspensos no computador; títulos de seção no celular) */
 const MENU_GRUPOS = [
   {rotulo:'Início', itens:['inicio']},
-  {rotulo:'Clube', itens:['atletas','chamada','documentos','missao']},
+  {rotulo:'Clube', itens:['atletas','chamada','documentos','fardamentos','missao']},
   {rotulo:'Agenda e avisos', itens:['calendario','avisos','hoteis']},
   {rotulo:'Reuniões', itens:['reuniao','reuniao-pais']},
   {rotulo:'Gestão', itens:['pagamentos','financeiro','usuarios']}
@@ -2075,7 +2403,7 @@ function b64uParaBytes(s){
 }
 function secaoInicial(){
   const s = new URLSearchParams(location.search).get('secao');
-  return s === 'avisos' ? 'avisos' : 'inicio';
+  return (s === 'avisos' || s === 'fardamentos') ? s : 'inicio';
 }
 async function estadoPush(){
   if(ehIOS() && !emModoApp()) return 'ios-instalar';
@@ -3134,6 +3462,7 @@ function irPara(secao){
     calendario: renderCalendario,
     avisos: renderAvisos,
     hoteis: renderHoteis,
+    fardamentos: renderFardamentos,
     missao: renderMissao,
     reuniao: renderReuniao,
     'reuniao-pais': renderReuniaoPais,
