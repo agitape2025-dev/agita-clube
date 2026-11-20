@@ -981,6 +981,13 @@ nav.menu-desktop .menu-sub button{text-align:left;width:100%;}
 .fard-grade.pq .fard-ajuste{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:6px}
 .fard-grade.pq .fard-ajuste .btn{width:34px;min-width:34px;height:34px;min-height:34px;padding:0;font-size:1.1rem;line-height:1;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center}
 .fard-grade.pq .fard-qtd{width:38px;min-width:38px;height:34px;padding:0;flex:0 0 auto;text-align:center}
+
+.fard-pedido{border-left:8px solid #c9c9c9;background:#f6f6f6}
+.fard-pedido.st-pendente{background:#fff1cc;border-left-color:#f59e0b}
+.fard-pedido.st-aceito{background:#e3efff;border-left-color:#2f6fd6}
+.fard-pedido.st-entregue{background:#e2f6ea;border-left-color:#1c9a5a}
+.fard-pedido.st-recusado,.fard-pedido.st-cancelado{background:#f1f1f1;border-left-color:#b5b5b5;opacity:.85}
+.fard-pedido.novo{box-shadow:0 0 0 3px rgba(245,158,11,.35),0 4px 14px rgba(245,158,11,.25)}
 </style>
 </head>
 <body>
@@ -1725,14 +1732,15 @@ let fardDados = {itens:[], precos:{}, pedidos:[], podeGerir:false, podePedir:tru
 let fardTimer = null, fardPedProd = null, fardQtdAlvo = null, fardValorProd = null, fardFiltro = 'todos', fardPendAnt = null, fardAssin = '', fardQtdAnt = null;
 const FARD_TAM_ROUPA = ['6','8','10','12','14','16','P','M','G'];
 const FARD_TAM_CAMISA = ['6','8','10','12','14','16','Baby Look','P','M','G'];
-const FARD_LINHAS = {'Esquente':['P','M','G'], 'Top':FARD_TAM_ROUPA, 'Short':FARD_TAM_ROUPA, 'Camiseta':FARD_TAM_ROUPA, 'Camisa Azul':FARD_TAM_CAMISA, 'Camisa Laranja':FARD_TAM_CAMISA};
+const FARD_LINHAS = {'Esquente':['P','M','G'], 'Top':FARD_TAM_ROUPA, 'Short':FARD_TAM_ROUPA, 'Camiseta':FARD_TAM_ROUPA, 'Camisa Azul':FARD_TAM_CAMISA, 'Camisa Laranja':FARD_TAM_CAMISA, 'Sapatilha':['P','M','G']};
 const FARD_PRODUTOS = [
   {nome:'Esquente', linhas:['Esquente'], desc:'Agasalho do clube. Tamanhos P, M e G.'},
   {nome:'Conjunto de Treino', linhas:['Top','Short','Camiseta'], desc:'Top + Short + Camiseta. Escolha o tamanho de cada peça.'},
   {nome:'Camisa Azul', linhas:['Camisa Azul'], desc:'Camisa azul do clube.'},
-  {nome:'Camisa Laranja', linhas:['Camisa Laranja'], desc:'Camisa laranja do clube.'}
+  {nome:'Camisa Laranja', linhas:['Camisa Laranja'], desc:'Camisa laranja do clube.'},
+  {nome:'Sapatilha', linhas:['Sapatilha'], desc:'Sapatilha de ginástica. Tamanhos P, M e G.'}
 ];
-const FARD_GRUPOS = [['Esquente',['Esquente']],['Conjunto de Treino',['Top','Short','Camiseta']],['Camisas',['Camisa Azul','Camisa Laranja']]];
+const FARD_GRUPOS = [['Esquente',['Esquente']],['Conjunto de Treino',['Top','Short','Camiseta']],['Camisas',['Camisa Azul','Camisa Laranja']],['Sapatilha',['Sapatilha']]];
 const FARD_STATUS = {
   pendente:['Aguardando aceite','#fff3cd','#8a6d00'],
   aceito:['Aceito','#dbeafe','#1e4fa3'],
@@ -1878,7 +1886,7 @@ function fardPedidoHtml(p){
   if(fin && (p.status === 'cancelado' || p.status === 'recusado')) acoes += bt('Remover do histórico','btn-secundario','remover','Remover este pedido do histórico? Isso não afeta o estoque.');
   if((gest && p.status === 'aceito') || (!gest && p.status === 'pendente')) acoes += bt('Cancelar pedido','btn-perigo','cancelar','Cancelar este pedido? O estoque reservado será devolvido.');
   const destaque = (gest && p.status === 'pendente') ? 'border:2px solid #f2b66b;' : '';
-  return '<div class="cartao fard-pedido" style="margin-bottom:12px;' + destaque + '">' +
+  return '<div class="cartao fard-pedido st-' + p.status + (gest && p.status === 'pendente' ? ' novo' : '') + '" style="margin-bottom:12px;' + destaque + '">' +
     '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start;">' +
     '<div><b style="font-size:1.05rem;color:var(--azul-escuro);">' + p.quantidade + '× ' + escaparTexto(p.tipo) + ' · ' + escaparTexto(p.tamanho) + '</b>' +
     '<div style="color:var(--texto-suave);font-size:.88rem;margin-top:2px;">Atleta: <b>' + escaparTexto(p.atleta) + '</b>' + (gest ? ' · Pedido por ' + escaparTexto(p.usuarioNome) : '') + ' · ' + quando + '</div>' +
