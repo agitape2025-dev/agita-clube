@@ -1107,39 +1107,66 @@ async function tratarChamada(request, env, usuario, rota, metodo) {
 }
 
 /* ---------------------------------------------------------------------------
-   FARDAMENTOS — estoque (tipo x tamanho), pedidos dos pais com reserva imediata,
+   FARDAMENTOS — estoque por peça e tamanho, pedidos das famílias com reserva imediata,
    aceite da diretoria/financeiro/admin e cobrança que cai nas taxas do Financeiro.
+   Produtos: Esquente (P, M, G); Conjunto de Treino (Top + Short + Camiseta, cada peça com o
+   seu tamanho); Camisa Azul e Camisa Laranja.
    --------------------------------------------------------------------------- */
+const FARD_TAM_ROUPA = ['6', '8', '10', '12', '14', '16', 'P', 'M', 'G'];
+const FARD_TAM_CAMISA = ['6', '8', '10', '12', '14', '16', 'Baby Look', 'P', 'M', 'G'];
+const FARD_LINHAS = {
+  'Esquente': ['P', 'M', 'G'],
+  'Top': FARD_TAM_ROUPA, 'Short': FARD_TAM_ROUPA, 'Camiseta': FARD_TAM_ROUPA,
+  'Camisa Azul': FARD_TAM_CAMISA, 'Camisa Laranja': FARD_TAM_CAMISA
+};
+const FARD_PRODUTOS = {
+  'Esquente': ['Esquente'],
+  'Conjunto de Treino': ['Top', 'Short', 'Camiseta'],
+  'Camisa Azul': ['Camisa Azul'],
+  'Camisa Laranja': ['Camisa Laranja']
+};
+const FARD_GESTORES = ['admin', 'diretoria', 'financeiro'];
 let fardamentosPronto = false;
 async function garantirTabelasFardamentos(env) {
   if (fardamentosPronto) return;
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS fard_itens (id TEXT PRIMARY KEY, tipo TEXT NOT NULL, tamanho TEXT NOT NULL, quantidade INTEGER NOT NULL DEFAULT 0, preco REAL NOT NULL DEFAULT 0, observacao TEXT, criado_em TEXT, atualizado_em TEXT)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS fard_pedidos (id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL, usuario_nome TEXT, atleta_nome TEXT, item_id TEXT, tipo TEXT, tamanho TEXT, quantidade INTEGER NOT NULL, valor_unit REAL, valor_total REAL, status TEXT NOT NULL, obs TEXT, taxa_id TEXT, criado_em TEXT, decidido_por TEXT, decidido_em TEXT, entregue_em TEXT)").run();
+  const cols = await env.DB.prepare("SELECT name FROM pragma_table_info('fard_pedidos')").all();
+  const nomes = (cols.results || []).map(function (c) { return c.name; });
+  if (nomes.indexOf('produto') < 0) await env.DB.prepare("ALTER TABLE fard_pedidos ADD COLUMN produto TEXT").run();
+  if (nomes.indexOf('detalhe') < 0) await env.DB.prepare("ALTER TABLE fard_pedidos ADD COLUMN detalhe TEXT").run();
+  try { await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS ux_fard_itens ON fard_itens(tipo, tamanho)").run(); } catch (e) { /* já existe ou há duplicados antigos */ }
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS fard_precos (produto TEXT PRIMARY KEY, preco REAL NOT NULL DEFAULT 0)").run();
   fardamentosPronto = true;
 }
-const FARD_GESTORES = ['admin', 'diretoria', 'financeiro'];
 function fardLimpar(s, max) {
   return String(s == null ? '' : s).replace(/[<>"\x60\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 function fardMudou(r) { return !!(r && r.meta && r.meta.changes === 1); }
-function fardValidarItem(c) {
-  const tipo = fardLimpar(c.tipo, 40);
-  const tamanho = fardLimpar(c.tamanho, 10).toUpperCase();
-  const quantidade = Math.floor(Number(c.quantidade));
-  const preco = Math.round(Number(String(c.preco == null ? '' : c.preco).replace(',', '.')) * 100) / 100;
-  if (!tipo || !tamanho) return { erro: 'Informe o tipo e o tamanho.' };
-  if (!(quantidade >= 0) || quantidade > 9999) return { erro: 'Informe uma quantidade válida (0 ou mais).' };
-  if (!(preco > 0) || preco > 100000) return { erro: 'Informe o valor de cada unidade.' };
-  return { tipo: tipo, tamanho: tamanho, quantidade: quantidade, preco: preco, observacao: fardLimpar(c.observacao, 200) };
+// Confere o tamanho dentro da lista permitida da peça e devolve a grafia oficial (ou null).
+function fardTamanhoValido(linha, t) {
+  const lista = FARD_LINHAS[linha];
+  if (!lista) return null;
+  const s = fardLimpar(t, 20).toLowerCase();
+  for (let i = 0; i < lista.length; i++) if (lista[i].toLowerCase() === s) return lista[i];
+  return null;
 }
-function fardItemDeLinha(l) {
-  return { id: l.id, tipo: l.tipo, tamanho: l.tamanho, quantidade: l.quantidade, preco: l.preco, observacao: l.observacao || '' };
+async function fardDevolver(env, lista, qtd, agora) {
+  for (const it of lista) {
+    await env.DB.prepare("UPDATE fard_itens SET quantidade = quantidade + ?, atualizado_em = ? WHERE tipo = ? AND tamanho = ?").bind(qtd, agora, it.tipo, it.tamanho).run();
+  }
+}
+async function fardDevolverPedido(env, p, agora) {
+  let det = [];
+  try { det = JSON.parse(p.detalhe || '[]'); } catch (e) { det = []; }
+  if (det.length) await fardDevolver(env, det, p.quantidade, agora);
+  else if (p.item_id) await env.DB.prepare("UPDATE fard_itens SET quantidade = quantidade + ?, atualizado_em = ? WHERE id = ?").bind(p.quantidade, agora, p.item_id).run();
 }
 function fardPedidoDeLinha(l, verPag, taxas) {
   const t = l.taxa_id ? taxas[l.taxa_id] : null;
   return {
     id: l.id, usuarioId: l.usuario_id, usuarioNome: l.usuario_nome || '', atleta: l.atleta_nome || '',
-    itemId: l.item_id, tipo: l.tipo, tamanho: l.tamanho, quantidade: l.quantidade,
+    tipo: l.tipo, tamanho: l.tamanho, quantidade: l.quantidade,
     valorUnit: l.valor_unit, valorTotal: l.valor_total, status: l.status, obs: l.obs || '',
     criadoEm: l.criado_em, decididoPor: l.decidido_por || '', decididoEm: l.decidido_em || '', entregueEm: l.entregue_em || '',
     pagamento: (verPag && t) ? t.status : null
@@ -1175,9 +1202,12 @@ async function tratarFardamentos(request, env, usuario, rota, metodo) {
   const id = rota[2] || '';
   const negado = function () { return erro('Apenas diretoria, financeiro e administrador controlam os fardamentos.', 403); };
 
-  // Lista: estoque + pedidos (gestores veem todos; famílias só os próprios)
+  // Lista: estoque + valores + pedidos (gestores veem todos; famílias só os próprios)
   if (recurso === '' && metodo === 'GET') {
-    const its = await env.DB.prepare("SELECT * FROM fard_itens ORDER BY tipo, tamanho").all();
+    const its = await env.DB.prepare("SELECT tipo, tamanho, quantidade FROM fard_itens").all();
+    const prs = await env.DB.prepare("SELECT produto, preco FROM fard_precos").all();
+    const precos = {};
+    (prs.results || []).forEach(function (r) { precos[r.produto] = r.preco; });
     const ps = gestor
       ? await env.DB.prepare("SELECT * FROM fard_pedidos ORDER BY criado_em DESC LIMIT 300").all()
       : await env.DB.prepare("SELECT * FROM fard_pedidos WHERE usuario_id = ? ORDER BY criado_em DESC LIMIT 100").bind(usuario.id).all();
@@ -1189,7 +1219,7 @@ async function tratarFardamentos(request, env, usuario, rota, metodo) {
     }
     const verPag = gestor ? fin : true;
     return json({
-      itens: (its.results || []).map(fardItemDeLinha),
+      itens: its.results || [], precos: precos,
       pedidos: linhas.map(function (p) { return fardPedidoDeLinha(p, verPag || p.usuario_id === usuario.id, taxas); }),
       podeGerir: gestor, podePedir: podePedir, verPag: verPag
     });
@@ -1207,74 +1237,82 @@ async function tratarFardamentos(request, env, usuario, rota, metodo) {
     return json({ pendentes: (n && n.n) || 0, recente: recente, titulo: recente ? a.titulo : '', corpo: recente ? a.corpo : '' });
   }
 
-  // Itens do estoque (somente quem controla)
-  if (recurso === 'itens') {
+  // Estoque por peça e tamanho (somente quem controla): PUT = quantidade exata, PATCH = entrada/saída
+  if (recurso === 'estoque' && (metodo === 'PUT' || metodo === 'PATCH')) {
     if (!gestor) return negado();
-    if (metodo === 'POST' && !id) {
-      const c = await request.json().catch(function () { return {}; });
-      const v = fardValidarItem(c);
-      if (v.erro) return erro(v.erro);
-      const igual = await env.DB.prepare("SELECT id FROM fard_itens WHERE LOWER(tipo) = LOWER(?) AND tamanho = ?").bind(v.tipo, v.tamanho).first();
-      if (igual) return erro('Já existe esse tipo neste tamanho. Edite o item existente para ajustar a quantidade.');
-      const novo = gerarId('fd');
-      await env.DB.prepare("INSERT INTO fard_itens (id, tipo, tamanho, quantidade, preco, observacao, criado_em, atualizado_em) VALUES (?,?,?,?,?,?,?,?)")
-        .bind(novo, v.tipo, v.tamanho, v.quantidade, v.preco, v.observacao, agora, agora).run();
-      return json({ ok: true, id: novo });
-    }
-    if (metodo === 'PUT' && id) {
-      const c = await request.json().catch(function () { return {}; });
-      const v = fardValidarItem(c);
-      if (v.erro) return erro(v.erro);
-      const igual = await env.DB.prepare("SELECT id FROM fard_itens WHERE LOWER(tipo) = LOWER(?) AND tamanho = ? AND id <> ?").bind(v.tipo, v.tamanho, id).first();
-      if (igual) return erro('Já existe esse tipo neste tamanho.');
-      const r = await env.DB.prepare("UPDATE fard_itens SET tipo=?, tamanho=?, quantidade=?, preco=?, observacao=?, atualizado_em=? WHERE id=?")
-        .bind(v.tipo, v.tamanho, v.quantidade, v.preco, v.observacao, agora, id).run();
-      if (!fardMudou(r)) return erro('Item não encontrado.', 404);
+    const c = await request.json().catch(function () { return {}; });
+    const linha = String(c.tipo || '');
+    const tam = fardTamanhoValido(linha, c.tamanho);
+    if (!FARD_LINHAS[linha] || !tam) return erro('Peça ou tamanho inválido.');
+    await env.DB.prepare("INSERT INTO fard_itens (id, tipo, tamanho, quantidade, preco, criado_em, atualizado_em) VALUES (?,?,?,0,0,?,?) ON CONFLICT(tipo, tamanho) DO NOTHING")
+      .bind(gerarId('fd'), linha, tam, agora, agora).run();
+    if (metodo === 'PUT') {
+      const q = Math.floor(Number(c.quantidade));
+      if (!(q >= 0) || q > 9999) return erro('Informe uma quantidade válida (0 ou mais).');
+      await env.DB.prepare("UPDATE fard_itens SET quantidade = ?, atualizado_em = ? WHERE tipo = ? AND tamanho = ?").bind(q, agora, linha, tam).run();
       return json({ ok: true });
     }
-    if (metodo === 'PATCH' && id) {
-      const c = await request.json().catch(function () { return {}; });
-      const d = Math.trunc(Number(c.delta));
-      if (!d || Math.abs(d) > 1000) return erro('Ajuste inválido.');
-      const r = await env.DB.prepare("UPDATE fard_itens SET quantidade = quantidade + ?, atualizado_em = ? WHERE id = ? AND quantidade + ? >= 0").bind(d, agora, id, d).run();
-      if (!fardMudou(r)) return erro('O estoque não pode ficar negativo.');
-      return json({ ok: true });
-    }
-    if (metodo === 'DELETE' && id) {
-      const pend = await env.DB.prepare("SELECT COUNT(*) AS n FROM fard_pedidos WHERE item_id = ? AND status = 'pendente'").bind(id).first();
-      if (pend && pend.n > 0) return erro('Há pedidos aguardando aceite deste item. Resolva-os antes de excluir.');
-      await env.DB.prepare("DELETE FROM fard_itens WHERE id = ?").bind(id).run();
-      return json({ ok: true });
-    }
-    return erro('Rota inválida.', 404);
+    const d = Math.trunc(Number(c.delta));
+    if (!d || Math.abs(d) > 1000) return erro('Ajuste inválido.');
+    const r = await env.DB.prepare("UPDATE fard_itens SET quantidade = quantidade + ?, atualizado_em = ? WHERE tipo = ? AND tamanho = ? AND quantidade + ? >= 0").bind(d, agora, linha, tam, d).run();
+    if (!fardMudou(r)) return erro('O estoque não pode ficar negativo.');
+    return json({ ok: true });
   }
 
-  // Pedidos das famílias
+  // Valor de cada produto (o do Conjunto de Treino vale pelo conjunto completo)
+  if (recurso === 'precos' && metodo === 'PUT') {
+    if (!gestor) return negado();
+    const c = await request.json().catch(function () { return {}; });
+    const produto = String(c.produto || '');
+    const preco = Math.round(Number(String(c.preco == null ? '' : c.preco).replace(',', '.')) * 100) / 100;
+    if (!FARD_PRODUTOS[produto]) return erro('Produto inválido.');
+    if (!(preco > 0) || preco > 100000) return erro('Informe um valor válido.');
+    await env.DB.prepare("INSERT INTO fard_precos (produto, preco) VALUES (?, ?) ON CONFLICT(produto) DO UPDATE SET preco = excluded.preco").bind(produto, preco).run();
+    return json({ ok: true });
+  }
+
+  // Pedido de uma família: reserva imediata, peça por peça, sem deixar dois pais levarem a mesma unidade
   if (recurso === 'pedidos' && !id && metodo === 'POST') {
     if (!podePedir) return erro('Seu perfil apenas visualiza o estoque de fardamentos.', 403);
     const c = await request.json().catch(function () { return {}; });
+    const produto = String(c.produto || '');
+    const linhas = FARD_PRODUTOS[produto];
+    if (!linhas) return erro('Escolha o fardamento.');
     const qtd = Math.floor(Number(c.quantidade));
     const atleta = fardLimpar(c.atleta, 80);
-    if (!c.itemId) return erro('Escolha o fardamento.');
     if (!(qtd >= 1) || qtd > 10) return erro('Escolha de 1 a 10 unidades.');
     if (!atleta) return erro('Informe o nome da atleta que vai usar o fardamento.');
-    const it = await env.DB.prepare("SELECT * FROM fard_itens WHERE id = ?").bind(String(c.itemId)).first();
-    if (!it) return erro('Item não encontrado. Atualize a página.', 404);
-    // Reserva atômica: só desconta se ainda houver estoque suficiente (evita dois pais levarem a mesma peça).
-    const r = await env.DB.prepare("UPDATE fard_itens SET quantidade = quantidade - ?, atualizado_em = ? WHERE id = ? AND quantidade >= ?").bind(qtd, agora, it.id, qtd).run();
-    if (!fardMudou(r)) {
-      const atual = await env.DB.prepare("SELECT quantidade FROM fard_itens WHERE id = ?").bind(it.id).first();
-      return erro(atual && atual.quantidade > 0 ? 'Só restam ' + atual.quantidade + ' unidade(s) deste item. Ajuste a quantidade.' : 'Esse item acabou de esgotar.', 409);
+    const pr = await env.DB.prepare("SELECT preco FROM fard_precos WHERE produto = ?").bind(produto).first();
+    const preco = pr ? pr.preco : 0;
+    if (!(preco > 0)) return erro('O valor deste fardamento ainda não foi definido pelo clube.');
+    const escolhas = c.escolhas || {};
+    const tams = {};
+    for (const linha of linhas) {
+      const tam = fardTamanhoValido(linha, escolhas[linha]);
+      if (!tam) return erro('Escolha o tamanho' + (linhas.length > 1 ? ' do ' + linha : '') + '.');
+      tams[linha] = tam;
     }
+    const reservadas = [];
+    for (const linha of linhas) {
+      const r = await env.DB.prepare("UPDATE fard_itens SET quantidade = quantidade - ?, atualizado_em = ? WHERE tipo = ? AND tamanho = ? AND quantidade >= ?").bind(qtd, agora, linha, tams[linha], qtd).run();
+      if (!fardMudou(r)) {
+        await fardDevolver(env, reservadas, qtd, agora);
+        const atual = await env.DB.prepare("SELECT quantidade FROM fard_itens WHERE tipo = ? AND tamanho = ?").bind(linha, tams[linha]).first();
+        const nome = (linhas.length > 1 ? linha : produto) + ' ' + tams[linha];
+        return erro(atual && atual.quantidade > 0 ? nome + ': só restam ' + atual.quantidade + ' unidade(s). Ajuste a quantidade.' : nome + ' acabou de esgotar.', 409);
+      }
+      reservadas.push({ tipo: linha, tamanho: tams[linha] });
+    }
+    const resumo = linhas.length > 1 ? linhas.map(function (l) { return l + ' ' + tams[l]; }).join(' · ') : tams[linhas[0]];
     const novo = gerarId('fp');
     try {
-      await env.DB.prepare("INSERT INTO fard_pedidos (id, usuario_id, usuario_nome, atleta_nome, item_id, tipo, tamanho, quantidade, valor_unit, valor_total, status, obs, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
-        .bind(novo, usuario.id, usuario.nome || usuario.usuario, atleta, it.id, it.tipo, it.tamanho, qtd, it.preco, Math.round(it.preco * qtd * 100) / 100, 'pendente', fardLimpar(c.obs, 200), agora).run();
+      await env.DB.prepare("INSERT INTO fard_pedidos (id, usuario_id, usuario_nome, atleta_nome, tipo, tamanho, quantidade, valor_unit, valor_total, status, obs, criado_em, produto, detalhe) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+        .bind(novo, usuario.id, usuario.nome || usuario.usuario, atleta, produto, resumo, qtd, preco, Math.round(preco * qtd * 100) / 100, 'pendente', fardLimpar(c.obs, 200), agora, produto, JSON.stringify(reservadas)).run();
     } catch (e) {
-      await env.DB.prepare("UPDATE fard_itens SET quantidade = quantidade + ?, atualizado_em = ? WHERE id = ?").bind(qtd, agora, it.id).run();
+      await fardDevolver(env, reservadas, qtd, agora);
       return erro('Não foi possível registrar o pedido. Tente de novo.', 500);
     }
-    await fardAvisarGestores(env, 'Novo pedido de fardamento', (usuario.nome || usuario.usuario) + ' pediu ' + qtd + 'x ' + it.tipo + ' ' + it.tamanho + ' (' + atleta + ')');
+    await fardAvisarGestores(env, 'Novo pedido de fardamento', (usuario.nome || usuario.usuario) + ' pediu ' + qtd + 'x ' + produto + ' ' + resumo + ' (' + atleta + ')');
     return json({ ok: true, id: novo });
   }
 
@@ -1291,9 +1329,6 @@ async function tratarFardamentos(request, env, usuario, rota, metodo) {
     const p = await env.DB.prepare("SELECT * FROM fard_pedidos WHERE id = ?").bind(id).first();
     if (!p) return erro('Pedido não encontrado.', 404);
     const quem = usuario.nome || usuario.usuario;
-    const devolver = async function () {
-      if (p.item_id) await env.DB.prepare("UPDATE fard_itens SET quantidade = quantidade + ?, atualizado_em = ? WHERE id = ?").bind(p.quantidade, agora, p.item_id).run();
-    };
     const atualizado = function () { return erro('Este pedido acabou de ser atualizado por outra pessoa. Atualize a página.', 409); };
 
     if (acao === 'cancelar') {
@@ -1307,7 +1342,7 @@ async function tratarFardamentos(request, env, usuario, rota, metodo) {
       const r = await env.DB.prepare("UPDATE fard_pedidos SET status = 'cancelado', decidido_por = ?, decidido_em = ? WHERE id = ? AND status = ?").bind(quem, agora, id, p.status).run();
       if (!fardMudou(r)) return atualizado();
       if (p.taxa_id) await env.DB.prepare("DELETE FROM taxas WHERE id = ? AND status <> 'pago'").bind(p.taxa_id).run();
-      await devolver();
+      await fardDevolverPedido(env, p, agora);
       return json({ ok: true });
     }
 
@@ -1328,7 +1363,7 @@ async function tratarFardamentos(request, env, usuario, rota, metodo) {
         const nomeAtleta = fardLimpar(p.atleta_nome, 80);
         const at = await env.DB.prepare("SELECT id FROM atletas WHERE LOWER(TRIM(nome)) = LOWER(?)").bind(nomeAtleta).first();
         const txId = gerarId('tx');
-        const desc = p.tipo + ' ' + p.tamanho + ' x' + p.quantidade + ' - ' + (nomeAtleta || 'sem atleta') + ' (pedido de ' + fardLimpar(p.usuario_nome, 60) + ')';
+        const desc = p.quantidade + 'x ' + p.tipo + ' ' + p.tamanho + ' - ' + (nomeAtleta || 'sem atleta') + ' (pedido de ' + fardLimpar(p.usuario_nome, 60) + ')';
         await env.DB.prepare("INSERT INTO taxas (id, atleta_id, tipo, descricao, valor, vencimento, data_pagamento, status) VALUES (?,?,?,?,?,NULL,NULL,'pendente')")
           .bind(txId, at ? at.id : null, 'Fardamento', desc, p.valor_total).run();
         await env.DB.prepare("UPDATE fard_pedidos SET taxa_id = ? WHERE id = ?").bind(txId, id).run();
@@ -1341,7 +1376,7 @@ async function tratarFardamentos(request, env, usuario, rota, metodo) {
     if (acao === 'recusar') {
       const r = await env.DB.prepare("UPDATE fard_pedidos SET status = 'recusado', decidido_por = ?, decidido_em = ? WHERE id = ? AND status = 'pendente'").bind(quem, agora, id).run();
       if (!fardMudou(r)) return atualizado();
-      await devolver();
+      await fardDevolverPedido(env, p, agora);
       return json({ ok: true });
     }
     if (acao === 'entregar') {
