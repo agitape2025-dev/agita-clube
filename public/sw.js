@@ -6,6 +6,27 @@ self.addEventListener('push', function(event){
   event.waitUntil((async function(){
     var titulo = 'Novo aviso do AGITA';
     var corpo = 'Toque para ver o aviso no mural.';
+    // Pedido de fardamento recente? (só quem controla os fardamentos recebe esse alerta)
+    try {
+      var c2 = new AbortController();
+      var t2 = setTimeout(function(){ c2.abort(); }, 3500);
+      var ra = await fetch('/api/fardamentos/alerta', { credentials: 'include', signal: c2.signal });
+      clearTimeout(t2);
+      if (ra.ok) {
+        var da = await ra.json();
+        if (da && da.recente) {
+          await self.registration.showNotification(da.titulo || 'Novo pedido de fardamento', {
+            body: da.corpo || 'Toque para ver o pedido.',
+            icon: '/icone.png',
+            badge: '/icone.png',
+            tag: 'agita-fard',
+            renotify: true,
+            data: { url: '/?secao=fardamentos' }
+          });
+          return;
+        }
+      }
+    } catch (e) { /* segue para o aviso normal */ }
     try {
       var ctrl = new AbortController();
       var t = setTimeout(function(){ ctrl.abort(); }, 4000);
