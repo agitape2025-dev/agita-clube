@@ -983,11 +983,11 @@ nav.menu-desktop .menu-sub button{text-align:left;width:100%;}
 .fard-grade.pq .fard-qtd{width:38px;min-width:38px;height:34px;padding:0;flex:0 0 auto;text-align:center}
 
 .fard-pedido{border-left:8px solid #c9c9c9;background:#f6f6f6}
-.fard-pedido.st-pendente{background:#fff1cc;border-left-color:#f59e0b}
-.fard-pedido.st-aceito{background:#e3efff;border-left-color:#2f6fd6}
+.fard-pedido.st-pendente{background:#dcf5e3;border-left-color:#1fa855}
+.fard-pedido.st-aceito{background:#ece6ff;border-left-color:#7c4dff}
 .fard-pedido.st-entregue{background:#e2f6ea;border-left-color:#1c9a5a}
 .fard-pedido.st-recusado,.fard-pedido.st-cancelado{background:#f1f1f1;border-left-color:#b5b5b5;opacity:.85}
-.fard-pedido.novo{box-shadow:0 0 0 3px rgba(245,158,11,.35),0 4px 14px rgba(245,158,11,.25)}
+.fard-pedido.novo{box-shadow:0 0 0 3px rgba(31,168,85,.35),0 4px 14px rgba(31,168,85,.25)}
 
 .linha-fardamento td{background:#ece6ff!important}
 .linha-fardamento td:first-child{box-shadow:inset 6px 0 0 #7c4dff}
@@ -1746,8 +1746,8 @@ const FARD_PRODUTOS = [
 ];
 const FARD_GRUPOS = [['Esquente',['Esquente']],['Conjunto de Treino',['Top','Short','Camiseta']],['Camisas',['Camisa Azul','Camisa Laranja']],['Sapatilha',['Sapatilha']]];
 const FARD_STATUS = {
-  pendente:['Aguardando aceite','#fff3cd','#8a6d00'],
-  aceito:['Aceito','#dbeafe','#1e4fa3'],
+  pendente:['Aguardando aceite','#c9f0d5','#14693a'],
+  aceito:['Aceito','#e0d6ff','#5b32c9'],
   entregue:['Entregue','#d6f2e0','#1c7a46'],
   recusado:['Recusado','#fde0e0','#a52a2a'],
   cancelado:['Cancelado','#ececec','#666666']
@@ -1843,7 +1843,7 @@ function fardDesenhar(){
   const av = document.getElementById('fard-aviso');
   if(av){
     av.innerHTML = (fardGestor() && pend > 0)
-      ? '<div class="cartao" style="margin-bottom:16px;background:#fff4e0;border:2px dashed #f2b66b;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;"><b>🔔 ' + pend + (pend === 1 ? ' pedido aguardando' : ' pedidos aguardando') + ' o seu aceite</b><button class="btn btn-primario" onclick="fardFiltro=\'pendente\';fardDesenhar()">Ver pedidos</button></div>'
+      ? '<div class="cartao" style="margin-bottom:16px;background:#e6f8ec;border:2px dashed #1fa855;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;"><b>🔔 ' + pend + (pend === 1 ? ' pedido aguardando' : ' pedidos aguardando') + ' o seu aceite</b><button class="btn btn-primario" onclick="fardFiltro=\'pendente\';fardDesenhar()">Ver pedidos</button></div>'
       : '';
   }
   if(fardGestor()){ fardPendAnt = pend; fardAtualizarBadge(pend); }
@@ -1889,7 +1889,7 @@ function fardPedidoHtml(p){
   if(fin && p.pagamento === 'pago') acoes += bt('Desfazer pagamento','btn-secundario','estornar','Desfazer o pagamento deste pedido?');
   if(fin && (p.status === 'cancelado' || p.status === 'recusado')) acoes += bt('Remover do histórico','btn-secundario','remover','Remover este pedido do histórico? Isso não afeta o estoque.');
   if((gest && p.status === 'aceito') || (!gest && p.status === 'pendente')) acoes += bt('Cancelar pedido','btn-perigo','cancelar','Cancelar este pedido? O estoque reservado será devolvido.');
-  const destaque = (gest && p.status === 'pendente') ? 'border:2px solid #f2b66b;' : '';
+  const destaque = (gest && p.status === 'pendente') ? 'border:2px solid #1fa855;' : '';
   return '<div class="cartao fard-pedido st-' + p.status + (gest && p.status === 'pendente' ? ' novo' : '') + '" style="margin-bottom:12px;' + destaque + '">' +
     '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start;">' +
     '<div><b style="font-size:1.05rem;color:var(--azul-escuro);">' + p.quantidade + '× ' + escaparTexto(p.tipo) + ' · ' + escaparTexto(p.tamanho) + '</b>' +
