@@ -1842,6 +1842,7 @@ function fardPedidoHtml(p){
   if(gest && p.status === 'aceito') acoes += bt('Marcar como entregue','btn-secundario','entregar');
   if(fin && p.pagamento === 'pendente' && (p.status === 'aceito' || p.status === 'entregue')) acoes += bt('Marcar como pago','btn-primario','pagar');
   if(fin && p.pagamento === 'pago') acoes += bt('Desfazer pagamento','btn-secundario','estornar','Desfazer o pagamento deste pedido?');
+  if(fin && (p.status === 'cancelado' || p.status === 'recusado')) acoes += bt('Remover do histórico','btn-secundario','remover','Remover este pedido do histórico? Isso não afeta o estoque.');
   if((gest && p.status === 'aceito') || (!gest && p.status === 'pendente')) acoes += bt('Cancelar pedido','btn-perigo','cancelar','Cancelar este pedido? O estoque reservado será devolvido.');
   const destaque = (gest && p.status === 'pendente') ? 'border:2px solid #f2b66b;' : '';
   return '<div class="cartao fard-pedido" style="margin-bottom:12px;' + destaque + '">' +
@@ -1857,10 +1858,15 @@ function fardPedidoHtml(p){
 function fardAcaoBtn(b){ fardAcao(b.dataset.id, b.dataset.acao, b.dataset.msg); }
 async function fardAcao(id, acao, msg){
   if(msg && !confirm(msg)) return;
+  if(acao === 'remover'){ await fardRemover(id); return; }
   try{ await api('fardamentos/pedidos/' + id, {method:'PATCH', corpo:{acao:acao}}); }
   catch(e){ await fardCarregar(); return; }
   const m = {aceitar:'Pedido aceito! A cobrança já foi enviada ao Financeiro.', recusar:'Pedido recusado e estoque devolvido.', entregar:'Entrega registrada.', pagar:'Pagamento registrado.', estornar:'Pagamento desfeito.', cancelar:'Pedido cancelado e estoque devolvido.'};
   mostrarToast(m[acao] || 'Pronto!');
+  await fardCarregar();
+}
+async function fardRemover(id){
+  try{ await api('fardamentos/pedidos/' + id, {method:'DELETE'}); mostrarToast('Pedido removido do histórico.'); }catch(e){}
   await fardCarregar();
 }
 async function fardAjustar(id, d){
