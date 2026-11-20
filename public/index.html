@@ -988,6 +988,10 @@ nav.menu-desktop .menu-sub button{text-align:left;width:100%;}
 .fard-pedido.st-entregue{background:#e2f6ea;border-left-color:#1c9a5a}
 .fard-pedido.st-recusado,.fard-pedido.st-cancelado{background:#f1f1f1;border-left-color:#b5b5b5;opacity:.85}
 .fard-pedido.novo{box-shadow:0 0 0 3px rgba(245,158,11,.35),0 4px 14px rgba(245,158,11,.25)}
+
+.linha-fardamento td{background:#ece6ff!important}
+.linha-fardamento td:first-child{box-shadow:inset 6px 0 0 #7c4dff}
+.selo-fard{display:inline-block;padding:3px 10px;border-radius:999px;background:#7c4dff;color:#fff;font-size:.78rem;font-weight:700;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -5024,9 +5028,9 @@ function renderTabelaTaxas(){
       <thead><tr><th>Atleta</th><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
       <tbody>
         ${taxasCache.map(t=>`
-          <tr>
+          <tr class="${t.tipo==='Fardamento'?'linha-fardamento':''}">
             <td>${t.atleta_nome||'Geral'}</td>
-            <td>${t.tipo}</td>
+            <td>${t.tipo==='Fardamento'?'<span class="selo-fard">&#128085; Fardamento</span>':t.tipo}</td>
             <td>${t.descricao||'—'}</td>
             <td>${formatarMoeda(t.valor)}</td>
             <td>${t.vencimento ? formatarData(t.vencimento) : '—'}</td>
